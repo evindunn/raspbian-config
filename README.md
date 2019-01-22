@@ -19,7 +19,7 @@ sed -Ei "s/^#? *PermitRootLogin +.*$/PermitRootLogin yes/" /etc/ssh/sshd_config
 systemctl enable ssh && systemctl restart ssh
 ```
 3. Copy the script to root user's home directory: `scp clean-raspbian.sh root@raspberry:/root/`
-4. Run the script: `ssh root@rasbian /bin/bash -c "chmod +x clean-rasbian.sh && ./clean-raspbian.sh"`
+4. Run the script: `ssh root@raspberry /bin/bash -c "chmod +x clean-rasbian.sh && ./clean-raspbian.sh"`
     The pi will reboot when done.
 6. dd the image from the SD card to a .img file
 7. Use [Drewsif's](https://github.com/Drewsif) awesome [pishrink.sh](https://github.com/Drewsif/PiShrink) script to create a small, bootable pi image
