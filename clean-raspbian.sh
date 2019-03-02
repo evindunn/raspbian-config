@@ -68,6 +68,8 @@ Name=*
 
 [Network]
 DHCP=ipv4
+
+[DHCP]
 UseDomains=yes
 
 # Disable link-local addressing & ipv6
