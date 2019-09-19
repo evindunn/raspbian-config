@@ -29,6 +29,18 @@ apt autoremove --purge -y
 apt-get update && apt-get dist-upgrade -y
 apt-get install vim -y
 
+cat << EOF > /etc/vim/vimrc.local
+syntax on
+set number
+set ts=4
+set sts=4
+set sw=4
+set expandtab
+
+autocmd FileType make setlocal noexpandtab
+autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
+EOF
+
 # Remove old config files
 rm -rf /etc/dhcp*
 rm -rf /var/run/avahi-daemon/
