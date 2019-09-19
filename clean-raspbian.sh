@@ -12,6 +12,25 @@ LC_ALL=en_US.UTF-8
 LANG=en_US.UTF-8
 EOF
 
+cat << EOF >> /etc/default/keyboard
+# KEYBOARD CONFIGURATION FILE
+
+# Consult the keyboard(5) manual page.
+
+XKBMODEL="pc105"
+XKBLAYOUT="us"
+XKBVARIANT=""
+XKBOPTIONS=""
+
+BACKSPACE="guess"
+EOF
+
+export LANGUAGE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export LANG=en_US.UTF-8
+export XKBMODEL="pc105"
+export XKBLAYOUT="us"
+
 # Root login only
 userdel -rf pi
 
@@ -96,4 +115,5 @@ systemctl enable systemd-networkd
 systemctl enable systemd-networkd-wait-online
 
 # Reboot
+echo "Rebooting..."
 reboot
