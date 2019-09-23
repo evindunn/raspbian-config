@@ -41,44 +41,44 @@ def load_status(status_file):
     :param status_file: File to load
     :return: A dict based on the json contents of status_file
     """
-    current_status = []
+    current_status = {}
     if os.path.exists(status_file):
         try:
             with open(status_file) as f:
                 current_status = json.load(f)
         except Exception as e:
             logging.warn(
-                "Error loading status file '{}': {}".format(STATUS_FILENAME, e)
+                "Error loading status file '{}': {}".format(status_file, e)
             )
     return current_status
 
 
-def save_status(status_file, status_array):
+def save_status(status_file, status_dict):
     """
     Save the given status as a json file
     :param status_file: File to load
-    :param status_array: Ordered array of completed stages in the script
+    :param status_dict: Dict of variabled from the script
     :return: None
     """
     current_status = []
     try:
         with open(status_file, "w") as f:
-            json.dump(status_array, f)
+            json.dump(status_dict, f)
     except Exception as e:
         logging.error(
-            "Error saving status file '{}': {}".format(STATUS_FILENAME, e)
+            "Error saving status file '{}': {}".format(status_file, e)
         )
 
 
-def exit_script(status_code, status_file, status_array):
+def exit_script(status_code, status_file, status_dict):
     """
     Writes status_array to status_file and returns status_code
     :param status_code: Code to return from this function
     :param status_file: File to write status_array to
-    :param status_array: Status array for the current run of the script
+    :param status_dict: Status dict for the current run of the script
     :return: status_code
     """
-    save_status(status_file, status_array)
+    save_status(status_file, status_dict)
     return status_code
 
 
@@ -101,29 +101,6 @@ def create_imgfile(name, size):
 
     logging.info(MSG_IMGFILE_CREATED.format(name, size))
     return True
-
-
-def get_loop_devs():
-    """
-    :return: Key value pair of file names mounted as loop devices
-    """
-    loop_devs = dict()
-    completed_process = sp.run(
-        CMD_LOOP_DEV_GET,
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
-    )
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-    else:
-        proc_stdout = completed_process.stdout.decode("utf-8").strip().split(os.linesep)
-        for line in proc_stdout:
-            line = line.split(" ")
-            dev_name = line[0].strip(":")
-            file_name = line[-1].strip("()")
-            loop_devs[file_name] = dev_name
-    return loop_devs
 
 
 def img_file_to_loop_dev(name):
@@ -237,57 +214,54 @@ def main():
         level="DEBUG"
     )
 
-    img_file = "test.img"
-    new_status = list()
-    prev_status = load_status(STATUS_FILENAME)
-    if type(prev_status) is not list:
-        logging.warn("Status file {} is corrupted. Skipping resume...")
-        prev_status = list()
+    override = False
+    old_status = load_status(STATUS_FILENAME)
+    if type(old_status) != dict:
+        logging.warn("{} is corrupted, starting over".format(STATUS_FILENAME))
+        old_status = dict()
+    new_status = dict()
 
-    # Create create_imgfile stage
-    if "create_imgfile" not in prev_status:
+    if not override and "img_file" in old_status.keys():
+        img_file = old_status["img_file"]
+        logging.info(
+            "{} already exists".format(img_file)
+        )
+    else:
+        img_file = "test.img"
         if not create_imgfile(img_file, 1024):
             return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("create_imgfile")
+    new_status["img_file"] = img_file
+
+    if not override and "loop_dev" in old_status.keys():
+        loop_dev = old_status["loop_dev"]
+        logging.info(
+            "{} already using {}".format(img_file, loop_dev)
+        )
     else:
-        logging.info("{} already exists".format(img_file))
-
-    loop_dev = None
-    if "imgfile_loop_dev" in prev_status:
-        loop_devs = get_loop_devs()
-        for k, v in loop_devs.items():
-            if k == img_file or img_file == k:
-                loop_dev = v
-                logging.info(
-                    "{} already assigned to {}".format(img_file, loop_dev)
-                )
-                break
-
-    if loop_dev is None:
         loop_dev = img_file_to_loop_dev(img_file)
         if loop_dev is None:
             return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("imgfile_loop_dev")
         logging.info(
             "Created loop device at {} for {}".format(loop_dev, img_file)
         )
+    new_status["loop_dev"] = loop_dev
 
     boot_partition = "{}p1".format(loop_dev)
     root_partition = "{}p2".format(loop_dev)
 
-    if "loop_dev_fmt" not in prev_status:
+    # loop_dev_fmt stage
+    if not override and "loop_dev_fmt" not in old_status.keys():
         logging.info("Formatting {}...".format(loop_dev))
         if not format_loop_dev(loop_dev):
             return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("loop_dev_fmt")
     else:
-        logging.info("{} already formatted".format(loop_dev))
+        logging.info("{} is already formatted".format(loop_dev))
+    new_status["loop_dev_fmt"] = True
 
-    if "root_mounted" not in prev_status:
-        logging.info("Mounting {} on /mnt...".format(root_partition))
-        if not mount_device(root_partition, "/mnt", "-i -o exec,dev"):
-            return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("root_mounted")
+    # root_mounted stage
+    logging.info("Mounting {} on /mnt...".format(root_partition))
+    if not mount_device(root_partition, "/mnt", "-i -o exec,dev"):
+        return exit_script(1, STATUS_FILENAME, new_status)
 
     try:
         os.makedirs("/mnt/boot/firmware", mode=0o755, exist_ok=1)
@@ -295,35 +269,34 @@ def main():
         logging.error(e)
         return 1
 
-    if "boot_mounted" not in prev_status:
-        logging.info("Mounting {} on /mnt/boot/firmware...".format(boot_partition))
-        if not mount_device(boot_partition, "/mnt", "-i -o exec,dev"):
-            return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("boot_mounted")
+    # boot_mounted stage
+    logging.info("Mounting {} on /mnt/boot/firmware...".format(boot_partition))
+    if not mount_device(boot_partition, "/mnt", "-i -o exec,dev"):
+        return exit_script(1, STATUS_FILENAME, new_status)
 
-    # Clean up
-    if "unmount_boot" not in prev_status:
-        logging.info("Unmounting {}...".format(boot_partition))
-        if not unmount_device(boot_partition):
-            return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("unmount_boot")
+    # unmount_boot stage
+    logging.info("Unmounting {}...".format(boot_partition))
+    if not unmount_device(boot_partition):
+        return exit_script(1, STATUS_FILENAME, new_status)
 
-    if "unmount_root" not in prev_status:
-        logging.info("Unmounting {}...".format(root_partition))
-        if not unmount_device(root_partition):
-            return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("unmount_root")
+    # ummount_root stage
+    logging.info("Unmounting {}...".format(root_partition))
+    if not unmount_device(root_partition):
+        return exit_script(1, STATUS_FILENAME, new_status)
 
+    # delete loop device, created every time
     logging.info("Deleting loop device {}...".format(loop_dev))
     if not delete_loop_dev(loop_dev):
         return exit_script(1, STATUS_FILENAME, new_status)
+    if "loop_dev" in new_status.keys():
+        new_status.pop("loop_dev")
 
     logging.info("Done.")
 
     # If we haven't logged any new statuses and haven't failed by now,
     # we skipped all of the steps and can skip next time too
-    if len(new_status) == 0:
-        new_status = prev_status
+    if len(new_status.keys()) == 0:
+        new_status = old_status
     return exit_script(0, STATUS_FILENAME, new_status)
 
 
