@@ -49,9 +49,11 @@ include_pkgs=(
     firmware-misc-nonfree
     firmware-realtek
     haveged
+    iproute2
     parted
     raspi3-firmware
     systemd
+    systemd-sysv
     ssh
     wireless-tools
     wpasupplicant
@@ -94,9 +96,6 @@ cat << EOF > /mnt/etc/hosts
 127.0.0.1	localhost
 127.0.1.1	raspberrypi
 EOF
-
-chroot /mnt rm -f /sbin/init
-chroot /mnt ln -s /lib/systemd/systemd /sbin/init
 
 mount -o bind /proc /mnt/proc
 mount -o bind /sys /mnt/sys
