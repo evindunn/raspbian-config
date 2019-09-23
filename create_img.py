@@ -7,6 +7,20 @@ import re
 import subprocess as sp
 import sys
 
+CONFIG_FSTAB = """
+/dev/mmcblk0p1  /boot/firmware  vfat    defaults            0 2
+/dev/mmcblk0p2  /               ext4    defaults,noatime    0 1
+proc            /proc           proc    defaults            0 0
+""".strip()
+
+CONFIG_DHCP = """
+[Match]
+Name=*
+
+[Network]
+DHCP=ipv4
+""".strip()
+
 CMD_IMGFILE_CREATE = "dd status=progress if=/dev/zero of={} iflag=fullblock " \
                      "bs=1M count={}"
 
@@ -39,6 +53,18 @@ CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
         {}
         http://ftp.debian.org/debian
 """).strip()
+
+CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
+CMD_DISABLE_ROOT_PW = "sed -i 's,root:[^:]*:,root::,' /mnt/etc/shadow"
+
+CMD_RESOLVCONF = """
+    #!/bin/bash
+    
+    mkdir -p {0}/run/systemd/resolve
+    rm {0}/etc/resolv.conf
+    cp /run/systemd/resolve/stub-resolv.conf {0}/run/systemd/resolve/stub-resolv.conf
+    chroot {0} ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+"""
 
 LOG_FMT_MSG = "[%(asctime)s][%(levelname)s] %(message)s"
 LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
@@ -121,9 +147,10 @@ def create_imgfile(name, size):
     completed_process = sp.run(
         CMD_IMGFILE_CREATE.format(name, size),
         shell=True,
-        stdout=sp.DEVNULL,
+        stdout=sp.PIPE,
         stderr=sp.PIPE
     )
+    logging.debug(completed_process.stdout)
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -168,9 +195,10 @@ def format_loop_dev(loop_dev):
             part_2_name=part_2_name
         ),
         shell=True,
-        stdout=sp.DEVNULL,
+        stdout=sp.PIPE,
         stderr=sp.PIPE
     )
+    logging.debug(completed_process.stdout)
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -192,9 +220,10 @@ def mount_device(dev_path, mnt_path, opts=""):
             mnt_path
         ),
         shell=True,
-        stdout=sp.DEVNULL,
+        stdout=sp.PIPE,
         stderr=sp.PIPE
     )
+    logging.debug(completed_process.stdout)
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -212,9 +241,10 @@ def do_debootstrap(mnt_point, extra_pks):
     completed_process = sp.run(
         CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point),
         shell=True,
-        stdout=sp.DEVNULL,
+        stdout=sp.PIPE,
         stderr=sp.PIPE
     )
+    logging.debug(completed_process.stdout)
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -319,6 +349,81 @@ def configure_apt(chroot, distrib="stable", components=("main", "contrib", "non-
     return True
 
 
+def configure_networking(chroot):
+    """
+    Configures networking in the given chroot using systemd-networkd and
+    systemd-resolved
+    :param chroot: Filesystem root
+    :return: Whether the operation was successful
+    """
+    success = True
+    logging.info("Configuring systemd-networkd...")
+    try:
+        with open("{}/etc/systemd/network/99-default.conf".format(chroot), "w") as f:
+            f.write(CONFIG_DHCP)
+    except Exception as e:
+        logging.error("Error writing {}/etc/systemd/network/99-default.conf: {}".format(chroot, e))
+        success = False
+
+    logging.info("Configuring systemd-resolved...")
+    completed_process = sp.run(
+        CMD_RESOLVCONF.format(chroot),
+        shell=True,
+        stdout=sp.DEVNULL,
+        stderr=sp.PIPE
+    )
+    if completed_process.returncode != 0:
+        logging.error(completed_process.stderr.decode("utf-8"))
+        success = False
+
+    return success
+
+
+def write_fstab(chroot):
+    """
+    Configure /etc/fstab under the given chroot
+    :param chroot: Filesystem root
+    :return: Whether the operation was successful
+    """
+    try:
+        logging.info("Writing /etc/fstab...")
+        with open("{}/etc/fstab".format(chroot), "w") as f:
+            f.write(CONFIG_FSTAB)
+    except Exception as e:
+        logging.error("Error writing {}/etc/fstab: {}".format(chroot, e))
+        return False
+    return True
+
+
+def install_kernel(chroot):
+    if not (
+        mount_device("/proc", "/mnt/proc", "-o bind") and
+        mount_device("/sys", "/mnt/sys", "-o bind") and
+        mount_device("/dev", "/mnt/dev", "-o bind") and
+        mount_device("/dev/pts", "/mnt/dev/pts", "-o bind")
+    ):
+        return False
+
+    success = True
+    completed_process = sp.run(
+        CMD_KERNEL_INSTALL.format(chroot),
+        shell=True,
+        stdout=sp.PIPE,
+        stderr=sp.PIPE
+    )
+    logging.debug(completed_process.stdout)
+    if completed_process.returncode != 0:
+        logging.error(completed_process.stderr.decode("utf-8"))
+        success = False
+
+    unmount_device("/mnt/proc")
+    unmount_device("/mnt/sys")
+    unmount_device("/mnt/dev/pts")
+    unmount_device("/mnt/dev")
+
+    return success
+
+
 def unmount_device(dev_or_mount_path):
     """
     :param dev_or_mount_path: Filesystem or block device path to unmount
@@ -345,7 +450,7 @@ def delete_loop_dev(loop_dev):
     completed_process = sp.run(
         CMD_LOOP_DEV_DELETE.format(loop_dev),
         shell=True,
-        stdout=sp.PIPE,
+        stdout=sp.DEVNULL,
         stderr=sp.PIPE
     )
     if completed_process.returncode != 0:
@@ -375,7 +480,7 @@ def main():
         )
     else:
         img_file = "test.img"
-        if not create_imgfile(img_file, 1024):
+        if not create_imgfile(img_file, 2048):
             return exit_script(1, STATUS_FILENAME, new_status)
     new_status["img_file"] = img_file
 
@@ -438,7 +543,7 @@ def main():
         logging.info("debootstrap has already compeleted at /mnt")
     new_status["debootstrap"] = True
 
-    # file stage
+    # configure stage
     if not configure_hostname("/mnt", "raspberrypi"):
         return exit_script(1, STATUS_FILENAME, new_status)
 
@@ -450,6 +555,20 @@ def main():
 
     if not configure_apt("/mnt"):
         return exit_script(1, STATUS_FILENAME, new_status)
+
+    if not configure_networking("/mnt"):
+        return exit_script(1, STATUS_FILENAME, new_status)
+
+    if not write_fstab("/mnt"):
+        return exit_script(1, STATUS_FILENAME, new_status)
+
+    if "kernel" not in old_status.keys():
+        logging.info("Installing kernel...")
+        if not install_kernel("/mnt"):
+            return exit_script(1, STATUS_FILENAME, new_status)
+    else:
+        logging.info("Kernel is already installed")
+    new_status["kernel"] = True
 
     # unmount_boot stage
     logging.info("Unmounting {}...".format(boot_partition))
