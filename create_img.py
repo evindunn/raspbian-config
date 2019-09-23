@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import subprocess as sp
 import sys
 
@@ -27,10 +28,38 @@ CMD_LOOP_DEV_FORMAT = """
 CMD_MNT = "mount {} {} {}"
 CMD_UMNT = "umount {}"
 
+CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
+    qemu-debootstrap
+        --arch=arm64
+        --keyring=/usr/share/keyrings/debian-archive-keyring.gpg
+        --components=main,contrib,non-free
+        --include={}
+        --variant=minbase
+        stable
+        {}
+        http://ftp.debian.org/debian
+""").strip()
+
 LOG_FMT_MSG = "[%(asctime)s][%(levelname)s] %(message)s"
 LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
 
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
+
+PKG_KERNEL = "linux-image-arm64"
+PKG_INCLUDES = [
+    "dosfstools",
+    "firmware-brcm80211",
+    "firmware-realtek",
+    "haveged",
+    "iproute2",
+    "parted",
+    "raspi3-firmware",
+    "systemd",
+    "systemd-sysv",
+    "ssh",
+    "wireless-tools",
+    "wpasupplicant"
+]
 
 STATUS_FILENAME = ".status"
 
@@ -172,6 +201,124 @@ def mount_device(dev_path, mnt_path, opts=""):
     return True
 
 
+def do_debootstrap(mnt_point, extra_pks):
+    """
+    :param mnt_point: Create debootstrap chroot here
+    :param extra_pks: Packages to include
+    :return: Whether the operation was successful
+    """
+
+    # Need debootstrap, qemu, binfmt-support, qemu-user-static
+    completed_process = sp.run(
+        CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point),
+        shell=True,
+        stdout=sp.DEVNULL,
+        stderr=sp.PIPE
+    )
+    if completed_process.returncode != 0:
+        logging.error(completed_process.stderr.decode("utf-8"))
+        return False
+    return True
+
+
+def configure_hostname(chroot, hostname):
+    """
+    Configures /etc/hostname and /etc/hosts for the given chroot directory
+    :param chroot: Filesystem root
+    :param hostname: Hostname
+    :return: Whether the operation was successful
+    """
+    try:
+        logging.info("Writing /etc/hostname...")
+        with open("{}/etc/hostname".format(chroot), "w") as f:
+            f.write("{}\n".format(hostname))
+    except Exception as e:
+        logging.error("Error writing {}/etc/hostname: {}".format(chroot, e))
+        return False
+
+    try:
+        logging.info("Writing /etc/hosts...")
+        with open("{}/etc/hosts".format(chroot), "w") as f:
+            f.writelines([
+                "127.0.0.1    localhost",
+                "127.0.1.1    {}".format(hostname)
+            ])
+    except Exception as e:
+        logging.error("Error writing {}/etc/hosts: {}".format(chroot, e))
+        return False
+    return True
+
+
+def configure_locale(chroot, locale):
+    """
+    Configure /etc/default/locale under the given chroot
+    :param chroot: Filesystem root
+    :param locale: Locale
+    :return: Whether the operation was successful
+    """
+    try:
+        logging.info("Writing /etc/default/locale...")
+        with open("{}/etc/default/locale".format(chroot), "w") as f:
+            f.writelines([
+                "LANG={}".format(locale),
+                "LC_ALL={}".format(locale),
+                "LANGUAGE={}".format(locale)
+            ])
+    except Exception as e:
+        logging.error("Error writing {}/etc/default/locale: {}".format(chroot, e))
+        return False
+    return True
+
+
+def configure_keyboard(chroot, xkblayout, xkbmodel="pc105", xkbvariant="", xkboptions="", backspace="guess"):
+    """
+    Configure /etc/default/keyboard under the given chroot
+    :param chroot: Filesystem root
+    :param xkblayout: Keyboard layout
+    :param xkbmodel: Keyboard model
+    :param xkbvariant: Keyboard variant
+    :param xkboptions: Keyboard options
+    :param backspace: Backspace option
+    :return: Whether the operation was successful
+    """
+    try:
+        logging.info("Writing /etc/default/keyboard...")
+        with open("{}/etc/default/keyboard".format(chroot), "w") as f:
+            f.writelines([
+                'XKBMODEL = "{}"'.format(xkbmodel),
+                'XKBLAYOUT = "{}"'.format(xkblayout),
+                'XKBVARIANT = "{}"'.format(xkbvariant),
+                'XKBOPTIONS = ""'.format(xkboptions),
+                'BACKSPACE = "{}"'.format(backspace)
+            ])
+    except Exception as e:
+        logging.error("Error writing {}/etc/default/keyboard: {}".format(chroot, e))
+        return False
+    return True
+
+
+def configure_apt(chroot, distrib="stable", components=("main", "contrib", "non-free")):
+    """
+    Configure /etc/apt/source.list under the given chroot
+    :param chroot: Filesystem root
+    :param distrib: stable, unstable, stretch, buster, etc...
+    :param components: main, contrib, non-free
+    :return: Whether the operation was successful
+    """
+    try:
+        logging.info("Writing /etc/apt/sources.list...")
+        content = "deb http://deb.debian.org/debian {} {}\n".format(
+            distrib,
+            " ".join(components)
+        )
+        with open("{}/etc/apt/sources.list".format(chroot), "w") as f:
+            f.write(content)
+    except Exception as e:
+        logging.error("Error writing {}/etc/apt/sources.list: {}".format(chroot, e))
+        return False
+    return True
+
+
 def unmount_device(dev_or_mount_path):
     """
     :param dev_or_mount_path: Filesystem or block device path to unmount
@@ -259,9 +406,13 @@ def main():
     new_status["loop_dev_fmt"] = True
 
     # root_mounted stage
-    logging.info("Mounting {} on /mnt...".format(root_partition))
-    if not mount_device(root_partition, "/mnt", "-i -o exec,dev"):
-        return exit_script(1, STATUS_FILENAME, new_status)
+    if "mount_root" not in old_status.keys():
+        logging.info("Mounting {} on /mnt...".format(root_partition))
+        if not mount_device(root_partition, "/mnt", "-i -o exec,dev"):
+            return exit_script(1, STATUS_FILENAME, new_status)
+    else:
+        logging.info("{} already mounted on /mnt...".format(root_partition))
+    new_status["mount_root"] = True
 
     try:
         os.makedirs("/mnt/boot/firmware", mode=0o755, exist_ok=1)
@@ -270,19 +421,49 @@ def main():
         return 1
 
     # boot_mounted stage
-    logging.info("Mounting {} on /mnt/boot/firmware...".format(boot_partition))
-    if not mount_device(boot_partition, "/mnt", "-i -o exec,dev"):
+    if "mount_boot" not in old_status.keys():
+        logging.info("Mounting {} on /mnt/boot/firmware...".format(boot_partition))
+        if not mount_device(boot_partition, "/mnt/boot/firmware", "-i -o exec,dev"):
+            return exit_script(1, STATUS_FILENAME, new_status)
+    else:
+        logging.info("{} already mounted on /mnt/boot/firmware...".format(boot_partition))
+    new_status["mount_boot"] = True
+
+    # debootstrap stage
+    if not override and "debootstrap" not in old_status.keys():
+        logging.info("Creating minimal debian system at /mnt...")
+        if not do_debootstrap("/mnt", PKG_INCLUDES):
+            return exit_script(1, STATUS_FILENAME, new_status)
+    else:
+        logging.info("debootstrap has already compeleted at /mnt")
+    new_status["debootstrap"] = True
+
+    # file stage
+    if not configure_hostname("/mnt", "raspberrypi"):
+        return exit_script(1, STATUS_FILENAME, new_status)
+
+    if not configure_locale("/mnt", "en_US.UTF-8"):
+        return exit_script(1, STATUS_FILENAME, new_status)
+
+    if not configure_keyboard("/mnt", "us"):
+        return exit_script(1, STATUS_FILENAME, new_status)
+
+    if not configure_apt("/mnt"):
         return exit_script(1, STATUS_FILENAME, new_status)
 
     # unmount_boot stage
     logging.info("Unmounting {}...".format(boot_partition))
     if not unmount_device(boot_partition):
         return exit_script(1, STATUS_FILENAME, new_status)
+    if "mount_boot" in new_status.keys():
+        new_status.pop("mount_boot")
 
     # ummount_root stage
     logging.info("Unmounting {}...".format(root_partition))
     if not unmount_device(root_partition):
         return exit_script(1, STATUS_FILENAME, new_status)
+    if "mount_root" in new_status.keys():
+        new_status.pop("mount_root")
 
     # delete loop device, created every time
     logging.info("Deleting loop device {}...".format(loop_dev))
