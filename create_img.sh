@@ -111,7 +111,7 @@ chroot /mnt ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 chroot /mnt systemctl enable systemd-networkd
 chroot /mnt systemctl enable systemd-resolved
 
-cat << EOF >> /mnt/etc/fstab
+cat << EOF > /mnt/etc/fstab
 /dev/mmcblk0p1  /boot/firmware  vfat    defaults            0 2
 /dev/mmcblk0p2  /               ext4    defaults,noatime    0 1
 proc            /proc           proc    defaults            0 0
