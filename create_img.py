@@ -249,17 +249,22 @@ def main():
         if not create_imgfile(img_file, 1024):
             return exit_script(1, STATUS_FILENAME, new_status)
         new_status.append("create_imgfile")
+    else:
+        logging.info("{} already exists".format(img_file))
 
     loop_dev = None
     if "imgfile_loop_dev" in prev_status:
         loop_devs = get_loop_devs()
         for k, v in loop_devs.items():
-            if k in img_file or img_file in k:
+            if k == img_file or img_file == k:
                 loop_dev = v
+                logging.info(
+                    "{} already assigned to {}".format(img_file, loop_dev)
+                )
                 break
-    elif loop_dev is None:
-        loop_dev = img_file_to_loop_dev(img_file)
 
+    if loop_dev is None:
+        loop_dev = img_file_to_loop_dev(img_file)
         if loop_dev is None:
             return exit_script(1, STATUS_FILENAME, new_status)
         new_status.append("imgfile_loop_dev")
@@ -275,6 +280,8 @@ def main():
         if not format_loop_dev(loop_dev):
             return exit_script(1, STATUS_FILENAME, new_status)
         new_status.append("loop_dev_fmt")
+    else:
+        logging.info("{} already formatted".format(loop_dev))
 
     if "root_mounted" not in prev_status:
         logging.info("Mounting {} on /mnt...".format(root_partition))
@@ -307,11 +314,9 @@ def main():
             return exit_script(1, STATUS_FILENAME, new_status)
         new_status.append("unmount_root")
 
-    if "loop_dev_delete" not in prev_status:
-        logging.info("Deleting loop device {}...".format(loop_dev))
-        if not delete_loop_dev(loop_dev):
-            return exit_script(1, STATUS_FILENAME, new_status)
-        new_status.append("loop_dev_delete")
+    logging.info("Deleting loop device {}...".format(loop_dev))
+    if not delete_loop_dev(loop_dev):
+        return exit_script(1, STATUS_FILENAME, new_status)
 
     logging.info("Done.")
 
