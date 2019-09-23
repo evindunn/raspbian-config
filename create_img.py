@@ -463,7 +463,7 @@ def main():
     logging.basicConfig(
         format=LOG_FMT_MSG,
         datefmt=LOG_FMT_DATE,
-        level="DEBUG"
+        level="INFO"
     )
 
     override = False
