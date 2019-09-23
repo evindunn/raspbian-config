@@ -150,7 +150,7 @@ def create_imgfile(name, size):
         stdout=sp.PIPE,
         stderr=sp.PIPE
     )
-    logging.debug(completed_process.stdout)
+    logging.debug(completed_process.stdout.decode("utf-8"))
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -198,7 +198,7 @@ def format_loop_dev(loop_dev):
         stdout=sp.PIPE,
         stderr=sp.PIPE
     )
-    logging.debug(completed_process.stdout)
+    logging.debug(completed_process.stdout.decode("utf-8"))
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -223,7 +223,7 @@ def mount_device(dev_path, mnt_path, opts=""):
         stdout=sp.PIPE,
         stderr=sp.PIPE
     )
-    logging.debug(completed_process.stdout)
+    logging.debug(completed_process.stdout.decode("utf-8"))
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -244,7 +244,7 @@ def do_debootstrap(mnt_point, extra_pks):
         stdout=sp.PIPE,
         stderr=sp.PIPE
     )
-    logging.debug(completed_process.stdout)
+    logging.debug(completed_process.stdout.decode("utf-8"))
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         return False
@@ -411,7 +411,7 @@ def install_kernel(chroot):
         stdout=sp.PIPE,
         stderr=sp.PIPE
     )
-    logging.debug(completed_process.stdout)
+    logging.debug(completed_process.stdout.decode("utf-8"))
     if completed_process.returncode != 0:
         logging.error(completed_process.stderr.decode("utf-8"))
         success = False
