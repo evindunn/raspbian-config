@@ -37,7 +37,7 @@ CMD_LOOP_DEV_FORMAT = """
 
 CMD_MNT = "mount {} {} {}"
 
-CMD_NETWORKD = "chroot {} systemctl enable --now systemd-networkd"
+CMD_NETWORKD = "chroot {} systemctl enable systemd-networkd"
 
 CMD_RESOLVCONF = """
     #!/bin/bash
@@ -46,7 +46,7 @@ CMD_RESOLVCONF = """
     rm {0}/etc/resolv.conf
     cp /run/systemd/resolve/stub-resolv.conf {0}/run/systemd/resolve/stub-resolv.conf
     chroot {0} ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
-    chroot {0} systemctl enable --now systemd-resolved
+    chroot {0} systemctl enable systemd-resolved
 """
 
 CMD_UMNT = "umount {}"
