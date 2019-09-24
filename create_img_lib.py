@@ -404,15 +404,15 @@ def write_vimconfig(chroot):
     try:
         with open("{}/etc/vim/vimrc".format(chroot), "w") as f:
             f.writelines([
-                "syntax on",
-                "set number",
-                "set ts=4",
-                "set sts=4",
-                "set sw=4",
-                "set expandtab",
-                "",
-                "autocmd FileType make setlocal noexpandtab",
-                "autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab",
+                "syntax on\n",
+                "set number\n",
+                "set ts=4\n",
+                "set sts=4\n",
+                "set sw=4\n",
+                "set expandtab\n",
+                "\n",
+                "autocmd FileType make setlocal noexpandtab\n",
+                "autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab\n",
             ])
     except Exception as e:
         logging.error("Error writing /etc/vim/vimrc: {}".format(e))
