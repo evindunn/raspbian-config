@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5b3a3021-16aa-4a14-9064-b4dbed153c86" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/create_img.py" beforeDir="false" afterPath="$PROJECT_DIR$/create_img.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/create_img_lib.py" beforeDir="false" afterPath="$PROJECT_DIR$/create_img_lib.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -13,10 +12,10 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/create_img.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="381">
+            <state relative-caret-position="-1080">
               <caret line="60" column="45" lean-forward="true" selection-start-line="60" selection-start-column="45" selection-end-line="60" selection-end-column="45" />
               <folding>
                 <element signature="e#24#33#0" expanded="true" />
@@ -25,11 +24,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/create_img_lib.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="468">
-              <caret line="414" column="15" lean-forward="true" selection-start-line="414" selection-start-column="15" selection-end-line="414" selection-end-column="15" />
+            <state relative-caret-position="405">
+              <caret line="48" column="54" selection-start-line="48" selection-start-column="54" selection-end-line="48" selection-end-column="54" />
               <folding>
                 <element signature="e#0#12#0" expanded="true" />
               </folding>
@@ -57,8 +56,8 @@
       <list>
         <option value="$PROJECT_DIR$/.gitignore" />
         <option value="$PROJECT_DIR$/README.md" />
-        <option value="$PROJECT_DIR$/create_img_lib.py" />
         <option value="$PROJECT_DIR$/create_img.py" />
+        <option value="$PROJECT_DIR$/create_img_lib.py" />
       </list>
     </option>
   </component>
@@ -123,11 +122,11 @@
     <editor active="true" />
     <layout>
       <window_info id="Favorites" side_tool="true" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.28184712" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.28184712" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Version Control" />
       <window_info anchor="bottom" id="Python Console" />
-      <window_info anchor="bottom" id="Terminal" visible="true" weight="0.32997763" />
+      <window_info active="true" anchor="bottom" id="Terminal" visible="true" weight="0.32997763" />
       <window_info anchor="bottom" id="Event Log" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
@@ -159,22 +158,22 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/create_img_lib.py">
+    <entry file="file://$PROJECT_DIR$/create_img.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="468">
-          <caret line="414" column="15" lean-forward="true" selection-start-line="414" selection-start-column="15" selection-end-line="414" selection-end-column="15" />
+        <state relative-caret-position="-1080">
+          <caret line="60" column="45" lean-forward="true" selection-start-line="60" selection-start-column="45" selection-end-line="60" selection-end-column="45" />
           <folding>
-            <element signature="e#0#12#0" expanded="true" />
+            <element signature="e#24#33#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/create_img.py">
+    <entry file="file://$PROJECT_DIR$/create_img_lib.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="381">
-          <caret line="60" column="45" lean-forward="true" selection-start-line="60" selection-start-column="45" selection-end-line="60" selection-end-column="45" />
+        <state relative-caret-position="405">
+          <caret line="48" column="54" selection-start-line="48" selection-start-column="54" selection-end-line="48" selection-end-column="54" />
           <folding>
-            <element signature="e#24#33#0" expanded="true" />
+            <element signature="e#0#12#0" expanded="true" />
           </folding>
         </state>
       </provider>

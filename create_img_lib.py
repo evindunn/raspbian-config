@@ -37,6 +37,8 @@ CMD_LOOP_DEV_FORMAT = """
 
 CMD_MNT = "mount {} {} {}"
 
+CMD_NETWORKD = "chroot {} systemctl enable --now systemd-networkd"
+
 CMD_RESOLVCONF = """
     #!/bin/bash
 
@@ -44,6 +46,7 @@ CMD_RESOLVCONF = """
     rm {0}/etc/resolv.conf
     cp /run/systemd/resolve/stub-resolv.conf {0}/run/systemd/resolve/stub-resolv.conf
     chroot {0} ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+    chroot {0} systemctl enable --now systemd-resolved
 """
 
 CMD_UMNT = "umount {}"
@@ -60,7 +63,7 @@ Name=*
 
 [Network]
 DHCP=ipv4
-""".strip()
+"""
 
 CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
 
@@ -325,6 +328,9 @@ def configure_networking(chroot):
     except Exception as e:
         logging.error("Error writing {}/etc/systemd/network/99-default.conf: {}".format(chroot, e))
         success = False
+
+    if success:
+        success = run_cmd(CMD_NETWORKD.format(chroot))
 
     if success:
         logging.info("Configuring systemd-resolved...")
