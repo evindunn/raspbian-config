@@ -370,17 +370,49 @@ def install_kernel(chroot):
 
 def change_rootpw(chroot, passwd):
 
-    with open("{}/etc/shadow".format(chroot)) as f:
-        shadow_lines = f.read()
+    try:
+        with open("{}/etc/shadow".format(chroot)) as f:
+            shadow_lines = f.read()
 
-    new_lines = re.sub(
-        r"(?<=^root:)\*(?=:)",
-        crypt.crypt(passwd, salt=crypt.METHOD_SHA256),
-        shadow_lines
-    )
+        new_lines = re.sub(
+            r"(?<=^root:)\*(?=:)",
+            crypt.crypt(passwd, salt=crypt.METHOD_SHA256),
+            shadow_lines
+        )
 
-    with open("{}/etc/shadow".format(chroot), "w") as f:
-        f.write(new_lines)
+        with open("{}/etc/shadow".format(chroot), "w") as f:
+            f.write(new_lines)
+    except Exception as e:
+        logging.error("Error changing root password: {}".format(e))
+        return False
+
+    return True
+
+
+def write_vimconfig(chroot):
+    """
+    Writes my prefered vim config to the chroot
+    :param chroot: Filesystem root
+    :return: Whether the operation was successful
+    """
+    try:
+        with open("{}/etc/vim/vimrc".format(chroot), "w") as f:
+            f.writelines([
+                "syntax on",
+                "set number",
+                "set ts=4",
+                "set sts=4",
+                "set sw=4",
+                "set expandtab",
+                "",
+                "autocmd FileType make setlocal noexpandtab",
+                "autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab",
+            ])
+    except Exception as e:
+        logging.error("Error writing /etc/vim/vimrc: {}".format(e))
+        return False
+
+    return True
 
 
 def unmount_device(dev_or_mount_path):
