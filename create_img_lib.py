@@ -1,8 +1,10 @@
-import subprocess as sp
+import crypt
 import json
 import logging
 import os
 import re
+import subprocess as sp
+import uuid
 
 CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
     qemu-debootstrap
@@ -61,7 +63,6 @@ Name=*
 DHCP=ipv4
 """.strip()
 
-CMD_DISABLE_ROOT_PW = "sed -i 's,root:[^:]*:,root::,' /mnt/etc/shadow"
 CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
 
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
@@ -398,6 +399,21 @@ def install_kernel(chroot):
     unmount_device("/mnt/dev")
 
     return success
+
+
+def change_rootpw(chroot, passwd):
+
+    with open("{}/etc/shadow".format(chroot)) as f:
+        shadow_lines = f.read()
+
+    new_lines = re.sub(
+        r"(?<=^root:)\*(?=:)",
+        crypt.crypt(passwd, salt=crypt.METHOD_SHA256),
+        shadow_lines
+    )
+
+    with open("{}/etc/shadow".format(chroot), "w") as f:
+        f.write(new_lines)
 
 
 def unmount_device(dev_or_mount_path):

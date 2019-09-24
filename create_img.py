@@ -5,6 +5,7 @@ import logging
 import sys
 
 from create_img_lib import (
+    change_rootpw,
     configure_apt,
     configure_hostname,
     configure_keyboard,
@@ -156,6 +157,10 @@ def main():
     else:
         logging.info("Kernel is already installed")
     new_status["kernel"] = True
+
+    # Change rootpw stage
+    logging.info("Changing root password...")
+    change_rootpw("/mnt", "toor")
 
     # unmount_boot stage
     logging.info("Unmounting {}...".format(boot_partition))
