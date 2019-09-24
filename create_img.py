@@ -68,8 +68,10 @@ def main():
         )
     else:
         img_file = "test.img"
-        if not create_imgfile(img_file, 2048):
+        img_file_size = 2048
+        if not create_imgfile(img_file, img_file_size):
             return exit_script(1, STATUS_FILENAME, new_status)
+        logging.info("Created image file {} of size {} MB".format(img_file, img_file_size))
     new_status["img_file"] = img_file
 
     if not override and "loop_dev" in old_status.keys():

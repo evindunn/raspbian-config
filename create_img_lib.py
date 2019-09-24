@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import subprocess as sp
-import uuid
 
 CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
     qemu-debootstrap
@@ -68,6 +67,36 @@ CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
 
 
+def run_cmd(cmd, return_output=False):
+    """
+    Runs the given cmd. If return_output, return stdout or None on error.
+    Else return a boolean indicating whether the operation was successful
+    :param cmd: Command to run
+    :param return_output: Whether to return a string or boolean
+    :return: Stdout or boolean indicating if the operation was
+    sucessful
+    """
+    completed_process = sp.run(
+        cmd,
+        shell=True,
+        stdout=sp.PIPE,
+        stderr=sp.PIPE
+    )
+
+    if not return_output:
+        logging.debug(completed_process.stdout.decode("utf-8"))
+
+    if completed_process.returncode != 0:
+        logging.error(completed_process.stderr.decode("utf-8"))
+        if return_output:
+            return None
+        return False
+
+    if return_output:
+        return completed_process.stdout.decode("utf-8").strip()
+    return True
+
+
 def load_status(status_file):
     """
     Loads the given json status_file
@@ -121,19 +150,7 @@ def create_imgfile(name, size):
     :param size: size of the file
     :return: Whether the process was successful
     """
-    completed_process = sp.run(
-        CMD_IMGFILE_CREATE.format(name, size),
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
-    )
-    logging.debug(completed_process.stdout.decode("utf-8"))
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return False
-
-    logging.info(MSG_IMGFILE_CREATED.format(name, size))
-    return True
+    return run_cmd(CMD_IMGFILE_CREATE.format(name, size))
 
 
 def img_file_to_loop_dev(name):
@@ -142,16 +159,7 @@ def img_file_to_loop_dev(name):
     :param name: File name to mount as a loop device
     :return: The name of the loop device created or None on error
     """
-    completed_process = sp.run(
-        CMD_LOOP_DEV_CREATE.format(name),
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
-    )
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return None
-    return completed_process.stdout.decode("utf-8").strip()
+    return run_cmd(CMD_LOOP_DEV_CREATE.format(name), return_output=True)
 
 
 def format_loop_dev(loop_dev):
@@ -165,21 +173,13 @@ def format_loop_dev(loop_dev):
     part_prefix = loop_dev.split("/")[-1]
     part_1_name = "{}p1".format(part_prefix)
     part_2_name = "{}p2".format(part_prefix)
-    completed_process = sp.run(
+    return run_cmd(
         CMD_LOOP_DEV_FORMAT.format(
             disk=loop_dev,
             part_1_name=part_1_name,
             part_2_name=part_2_name
-        ),
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
+        )
     )
-    logging.debug(completed_process.stdout.decode("utf-8"))
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return False
-    return True
 
 
 def mount_device(dev_path, mnt_path, opts=""):
@@ -190,21 +190,13 @@ def mount_device(dev_path, mnt_path, opts=""):
     :param opts: Mount options
     :return: Whether the operation was successful
     """
-    completed_process = sp.run(
+    return run_cmd(
         CMD_MNT.format(
             opts,
             dev_path,
             mnt_path
-        ),
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
+        )
     )
-    logging.debug(completed_process.stdout.decode("utf-8"))
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return False
-    return True
 
 
 def do_debootstrap(mnt_point, extra_pks):
@@ -215,17 +207,9 @@ def do_debootstrap(mnt_point, extra_pks):
     """
 
     # Need debootstrap, qemu, binfmt-support, qemu-user-static
-    completed_process = sp.run(
-        CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point),
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
+    return run_cmd(
+        CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point)
     )
-    logging.debug(completed_process.stdout.decode("utf-8"))
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return False
-    return True
 
 
 def configure_hostname(chroot, hostname):
@@ -342,16 +326,9 @@ def configure_networking(chroot):
         logging.error("Error writing {}/etc/systemd/network/99-default.conf: {}".format(chroot, e))
         success = False
 
-    logging.info("Configuring systemd-resolved...")
-    completed_process = sp.run(
-        CMD_RESOLVCONF.format(chroot),
-        shell=True,
-        stdout=sp.DEVNULL,
-        stderr=sp.PIPE
-    )
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        success = False
+    if success:
+        logging.info("Configuring systemd-resolved...")
+        success = run_cmd(CMD_RESOLVCONF.format(chroot))
 
     return success
 
@@ -381,17 +358,7 @@ def install_kernel(chroot):
     ):
         return False
 
-    success = True
-    completed_process = sp.run(
-        CMD_KERNEL_INSTALL.format(chroot),
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
-    )
-    logging.debug(completed_process.stdout.decode("utf-8"))
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        success = False
+    success = run_cmd(CMD_KERNEL_INSTALL.format(chroot))
 
     unmount_device("/mnt/proc")
     unmount_device("/mnt/sys")
@@ -421,16 +388,7 @@ def unmount_device(dev_or_mount_path):
     :param dev_or_mount_path: Filesystem or block device path to unmount
     :return: Whether the operation was successful
     """
-    completed_process = sp.run(
-        CMD_UMNT.format(dev_or_mount_path),
-        shell=True,
-        stdout=sp.DEVNULL,
-        stderr=sp.PIPE
-    )
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return False
-    return True
+    return run_cmd(CMD_UMNT.format(dev_or_mount_path))
 
 
 def delete_loop_dev(loop_dev):
@@ -439,13 +397,4 @@ def delete_loop_dev(loop_dev):
     :param loop_dev: Loop device path
     :return: Whether the operation was successful
     """
-    completed_process = sp.run(
-        CMD_LOOP_DEV_DELETE.format(loop_dev),
-        shell=True,
-        stdout=sp.DEVNULL,
-        stderr=sp.PIPE
-    )
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        return False
-    return True
+    return run_cmd(CMD_LOOP_DEV_DELETE.format(loop_dev))
