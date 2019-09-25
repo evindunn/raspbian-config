@@ -46,6 +46,17 @@ Name=*
 DHCP=ipv4
 """
 
+CONFIG_HOSTS = """
+127.0.0.1    localhost,
+127.0.1.1    {}
+"""
+
+CONFIG_LANG = """
+LANG={}
+LC_ALL={}
+LANGUAGE={}
+"""
+
 CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
 
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
@@ -105,9 +116,7 @@ def do_debootstrap(mnt_point, extra_pks):
     """
 
     # Need debootstrap, qemu, binfmt-support, qemu-user-static
-    return run_cmd(
-        CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point)
-    )
+    return run_cmd(CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point))
 
 
 def configure_hostname(chroot, hostname):
@@ -128,10 +137,7 @@ def configure_hostname(chroot, hostname):
     try:
         logging.info("Writing /etc/hosts...")
         with open("{}/etc/hosts".format(chroot), "w") as f:
-            f.writelines([
-                "127.0.0.1    localhost",
-                "127.0.1.1    {}".format(hostname)
-            ])
+            f.write(CONFIG_HOSTS.format(hostname))
     except Exception as e:
         logging.error("Error writing {}/etc/hosts: {}".format(chroot, e))
         return False
@@ -148,11 +154,7 @@ def configure_locale(chroot, locale):
     try:
         logging.info("Writing /etc/default/locale...")
         with open("{}/etc/default/locale".format(chroot), "w") as f:
-            f.writelines([
-                "LANG={}".format(locale),
-                "LC_ALL={}".format(locale),
-                "LANGUAGE={}".format(locale)
-            ])
+            f.write(CONFIG_LANG)
     except Exception as e:
         logging.error("Error writing {}/etc/default/locale: {}".format(chroot, e))
         return False
@@ -230,7 +232,7 @@ def configure_networking(chroot):
         with open("{}/etc/ssh/sshd_config".format(chroot), "w") as f:
             # Uncomment the line
             ssh_config = re.sub(
-                r"# ?(?=PermitRootLogin\s+yes|no|prohibit-password)",
+                r"# ?(?=PermitRootLogin\s+yes|no|prohibit-password)$",
                 "",
                 ssh_config,
                 re.MULTILINE
@@ -238,7 +240,7 @@ def configure_networking(chroot):
             # Allow root login
             f.write(
                 re.sub(
-                    r"(?<=PermitRootLogin)\s+(no|prohibit-password)",
+                    r"(?<=PermitRootLogin)\s+(no|prohibit-password)$",
                     " yes",
                     ssh_config,
                     re.MULTILINE

@@ -41,6 +41,7 @@ PKG_INCLUDES = [
     "firmware-realtek",
     "haveged",
     "iproute2",
+    "locales",
     "parted",
     "raspi3-firmware",
     "systemd",
