@@ -2,7 +2,7 @@ import crypt
 import logging
 import re
 
-from lib.common import run_cmd
+from lib.common import Chroot, run_cmd, read_file, write_file
 from lib.disk import mount_device, unmount_device
 
 CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
@@ -29,7 +29,34 @@ LC_ALL={}
 LANGUAGE={}
 """
 
-CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
+CONFIG_KEYBOARD = """
+XKBMODEL={}
+XKBLAYOUT={}
+XKBVARIANT={}
+XKBOPTIONS={}
+BACKSPACE={}
+"""
+
+CONFIG_VIM = """
+syntax on
+set number
+set ts=4
+set sts=4
+set sw=4
+set expandtab
+
+autocmd FileType make setlocal noexpandtab
+autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
+"""
+
+CMD_KERNEL_INSTALL = "apt-get install -y linux-image-arm64"
+
+FILE_APT = "/etc/apt/sources.list"
+FILE_FSTAB = "/etc/fstab"
+FILE_KEYBOARD = "/etc/default/keyboard"
+FILE_LOCALES = "/etc/default/locale"
+FILE_PASSWD = "/etc/shadow"
+FILE_VIMRC = "/etc/vim/vimrc"
 
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
 
@@ -52,14 +79,9 @@ def configure_locale(chroot, locale):
     :param locale: Locale
     :return: Whether the operation was successful
     """
-    try:
-        logging.info("Writing /etc/default/locale...")
-        with open("{}/etc/default/locale".format(chroot), "w") as f:
-            f.write(CONFIG_LANG)
-    except Exception as e:
-        logging.error("Error writing {}/etc/default/locale: {}".format(chroot, e))
-        return False
-    return True
+    return write_file(
+        "{}{}".format(chroot, FILE_LOCALES), CONFIG_LANG.format(locale)
+    )
 
 
 def configure_keyboard(chroot, xkblayout, xkbmodel="pc105", xkbvariant="", xkboptions="", backspace="guess"):
@@ -73,20 +95,14 @@ def configure_keyboard(chroot, xkblayout, xkbmodel="pc105", xkbvariant="", xkbop
     :param backspace: Backspace option
     :return: Whether the operation was successful
     """
-    try:
-        logging.info("Writing /etc/default/keyboard...")
-        with open("{}/etc/default/keyboard".format(chroot), "w") as f:
-            f.writelines([
-                'XKBMODEL = "{}"'.format(xkbmodel),
-                'XKBLAYOUT = "{}"'.format(xkblayout),
-                'XKBVARIANT = "{}"'.format(xkbvariant),
-                'XKBOPTIONS = ""'.format(xkboptions),
-                'BACKSPACE = "{}"'.format(backspace)
-            ])
-    except Exception as e:
-        logging.error("Error writing {}/etc/default/keyboard: {}".format(chroot, e))
-        return False
-    return True
+    keyboard_config = CONFIG_KEYBOARD.format(
+        xkbmodel,
+        xkblayout,
+        xkbvariant,
+        xkboptions,
+        backspace
+    )
+    return write_file("{}{}".format(chroot, FILE_KEYBOARD), keyboard_config)
 
 
 def configure_apt(chroot, distrib="stable", components=("main", "contrib", "non-free")):
@@ -97,18 +113,11 @@ def configure_apt(chroot, distrib="stable", components=("main", "contrib", "non-
     :param components: main, contrib, non-free
     :return: Whether the operation was successful
     """
-    try:
-        logging.info("Writing /etc/apt/sources.list...")
-        content = "deb http://deb.debian.org/debian {} {}\n".format(
-            distrib,
-            " ".join(components)
-        )
-        with open("{}/etc/apt/sources.list".format(chroot), "w") as f:
-            f.write(content)
-    except Exception as e:
-        logging.error("Error writing {}/etc/apt/sources.list: {}".format(chroot, e))
-        return False
-    return True
+    content = "deb http://deb.debian.org/debian {} {}\n".format(
+        distrib,
+        " ".join(components)
+    )
+    return write_file("{}{}".format(chroot, FILE_APT), content)
 
 
 def write_fstab(chroot):
@@ -117,17 +126,15 @@ def write_fstab(chroot):
     :param chroot: Filesystem root
     :return: Whether the operation was successful
     """
-    try:
-        logging.info("Writing /etc/fstab...")
-        with open("{}/etc/fstab".format(chroot), "w") as f:
-            f.write(CONFIG_FSTAB)
-    except Exception as e:
-        logging.error("Error writing {}/etc/fstab: {}".format(chroot, e))
-        return False
-    return True
+    return write_file("{}{}".format(chroot, FILE_FSTAB), CONFIG_FSTAB)
 
 
 def install_kernel(chroot):
+    """
+    Installs the Debian Arm64 kernel under the given chroot
+    :param chroot: Filesystem root
+    :return: Whether the operation was successful
+    """
     if not (
             mount_device("/proc", "/mnt/proc", "-o bind") and
             mount_device("/sys", "/mnt/sys", "-o bind") and
@@ -136,7 +143,8 @@ def install_kernel(chroot):
     ):
         return False
 
-    success = run_cmd(CMD_KERNEL_INSTALL.format(chroot))
+    with Chroot(chroot):
+        success = run_cmd(CMD_KERNEL_INSTALL.format(chroot))
 
     unmount_device("/mnt/proc")
     unmount_device("/mnt/sys")
@@ -147,24 +155,24 @@ def install_kernel(chroot):
 
 
 def change_rootpw(chroot, passwd):
+    """
+    Changes the root password under the given chroot
+    :param chroot: Filesystem root
+    :param passwd: New root password
+    :return: Whether the operation was successful
+    """
+    shadow_file = "{}{}".format(chroot, FILE_PASSWD)
+    success = shadow_contents = read_file(shadow_file)
 
-    try:
-        with open("{}/etc/shadow".format(chroot)) as f:
-            shadow_lines = f.read()
-
-        new_lines = re.sub(
+    if success:
+        shadow_contents = re.sub(
             r"(?<=^root:)\*(?=:)",
             crypt.crypt(passwd, salt=crypt.METHOD_SHA256),
-            shadow_lines
+            shadow_contents
         )
+        success = write_file(FILE_PASSWD, shadow_contents)
 
-        with open("{}/etc/shadow".format(chroot), "w") as f:
-            f.write(new_lines)
-    except Exception as e:
-        logging.error("Error changing root password: {}".format(e))
-        return False
-
-    return True
+    return success
 
 
 def write_vimconfig(chroot):
@@ -173,21 +181,4 @@ def write_vimconfig(chroot):
     :param chroot: Filesystem root
     :return: Whether the operation was successful
     """
-    try:
-        with open("{}/etc/vim/vimrc".format(chroot), "w") as f:
-            f.writelines([
-                "syntax on\n",
-                "set number\n",
-                "set ts=4\n",
-                "set sts=4\n",
-                "set sw=4\n",
-                "set expandtab\n",
-                "\n",
-                "autocmd FileType make setlocal noexpandtab\n",
-                "autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab\n",
-            ])
-    except Exception as e:
-        logging.error("Error writing /etc/vim/vimrc: {}".format(e))
-        return False
-
-    return True
+    return write_file("{}{}".format(chroot, FILE_VIMRC), CONFIG_VIM)

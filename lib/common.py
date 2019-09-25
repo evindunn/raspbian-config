@@ -120,8 +120,11 @@ def run_cmd(cmd, return_output=False, chroot=""):
 def systemd_enable(service_name, chroot=""):
     command = CMD_SYSTEMCTL_ENABLE.format(service_name)
     if chroot != "":
-        command = "chroot {} {}".format(chroot, command)
-    return run_cmd(command)
+        with Chroot(chroot):
+            success = run_cmd(command)
+    else:
+        success = run_cmd(command)
+    return success
 
 
 def load_status(status_file):
@@ -130,16 +133,7 @@ def load_status(status_file):
     :param status_file: File to load
     :return: A dict based on the json contents of status_file
     """
-    current_status = {}
-    if os.path.exists(status_file):
-        try:
-            with open(status_file) as f:
-                current_status = json.load(f)
-        except Exception as e:
-            logging.warning(
-                "Error loading status file '{}': {}".format(status_file, e)
-            )
-    return current_status
+    return read_file(status_file)
 
 
 def save_status(status_file, status_dict):
@@ -149,13 +143,7 @@ def save_status(status_file, status_dict):
     :param status_dict: Dict of variabled from the script
     :return: None
     """
-    try:
-        with open(status_file, "w") as f:
-            json.dump(status_dict, f)
-    except Exception as e:
-        logging.error(
-            "Error saving status file '{}': {}".format(status_file, e)
-        )
+    return write_file(status_file, json.dumps(status_dict))
 
 
 def exit_script(status_code, status_file, status_dict):
@@ -166,5 +154,6 @@ def exit_script(status_code, status_file, status_dict):
     :param status_dict: Status dict for the current run of the script
     :return: status_code
     """
-    save_status(status_file, status_dict)
-    return status_code
+    if save_status(status_file, status_dict):
+        return status_code
+    return 1
