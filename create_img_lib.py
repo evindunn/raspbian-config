@@ -246,6 +246,8 @@ def configure_networking(chroot):
             )
         if not run_cmd("chroot {} systemctl enable ssh".format(chroot)):
             success = False
+        if not run_cmd("chroot {} systemctl enable dbus".format(chroot)):
+            success = False
     except Exception as e:
         logging.error("Error writing {}/etc/ssh/sshd_config: {}".format(chroot, e))
         success = False
