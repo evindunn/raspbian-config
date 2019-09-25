@@ -44,8 +44,8 @@ CMD_RESOLVCONF = """
 
     mkdir -p {0}/run/systemd/resolve
     rm {0}/etc/resolv.conf
-    cp /run/systemd/resolve/stub-resolv.conf {0}/run/systemd/resolve/stub-resolv.conf
-    chroot {0} ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+    cp /run/systemd/resolve/resolv.conf {0}/run/systemd/resolve/resolv.conf
+    chroot {0} ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
     chroot {0} systemctl enable systemd-resolved
 """
 
@@ -335,7 +335,7 @@ def configure_networking(chroot):
         with open("{}/etc/ssh/sshd_config".format(chroot), "w") as f:
             # Uncomment the line
             ssh_config = re.sub(
-                r"# ?(?=PermitRootLogin )(yes|no|prohibit-password)",
+                r"# ?(?=PermitRootLogin\s+yes|no|prohibit-password)",
                 "",
                 ssh_config,
                 re.MULTILINE
@@ -343,12 +343,14 @@ def configure_networking(chroot):
             # Allow root login
             f.write(
                 re.sub(
-                    r"(?<=PermitRootLogin )(no|prohibit-password)",
-                    "yes",
+                    r"(?<=PermitRootLogin)\s+(no|prohibit-password)",
+                    " yes",
                     ssh_config,
                     re.MULTILINE
                 )
             )
+        if not run_cmd("chroot {} systemctl enable ssh".format(chroot)):
+            success = False
     except Exception as e:
         logging.error("Error writing {}/etc/ssh/sshd_config: {}".format(chroot, e))
         success = False
