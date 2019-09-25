@@ -47,6 +47,7 @@ PKG_INCLUDES = [
     "iproute2",
     "locales",
     "parted",
+    "python",   # For ansible
     "raspi3-firmware",
     "systemd",
     "systemd-sysv",
