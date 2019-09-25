@@ -18,6 +18,9 @@ from create_img_lib import (
     write_fstab,
     write_vimconfig
 )
+
+from lib.common import run_cmd
+
 from lib.disk import (
     dd,
     format_partition,
@@ -36,6 +39,7 @@ LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
 PKG_KERNEL = "linux-image-arm64"
 PKG_INCLUDES = [
     "dbus",
+    "dialog",
     "dosfstools",
     "firmware-brcm80211",
     "firmware-realtek",
@@ -200,6 +204,10 @@ def main():
     # Write vim config
     logging.info("Writing vim config...")
     write_vimconfig(CHROOT_LOCATION)
+
+    logging.info("Configuring locales...")
+    if not run_cmd("locale-gen --purge en_US.UTF-8"):
+        exit_script(1, STATUS_FILENAME, new_status)
 
     # unmount_boot stage
     logging.info("Unmounting {}...".format(boot_partition))
