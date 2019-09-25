@@ -323,10 +323,34 @@ def configure_networking(chroot):
     success = True
     logging.info("Configuring systemd-networkd...")
     try:
-        with open("{}/etc/systemd/network/99-default.conf".format(chroot), "w") as f:
+        with open("{}/etc/systemd/network/99-default.network".format(chroot), "w") as f:
             f.write(CONFIG_DHCP)
     except Exception as e:
-        logging.error("Error writing {}/etc/systemd/network/99-default.conf: {}".format(chroot, e))
+        logging.error("Error writing {}/etc/systemd/network/99-default.network: {}".format(chroot, e))
+        success = False
+
+    try:
+        with open("{}/etc/ssh/sshd_config".format(chroot)) as f:
+            ssh_config = f.read()
+        with open("{}/etc/ssh/sshd_config".format(chroot), "w") as f:
+            # Uncomment the line
+            ssh_config = re.sub(
+                r"# ?(?=PermitRootLogin )(yes|no|prohibit-password)",
+                "",
+                ssh_config,
+                re.MULTILINE
+            )
+            # Allow root login
+            f.write(
+                re.sub(
+                    r"(?<=PermitRootLogin )(no|prohibit-password)",
+                    "yes",
+                    ssh_config,
+                    re.MULTILINE
+                )
+            )
+    except Exception as e:
+        logging.error("Error writing {}/etc/ssh/sshd_config: {}".format(chroot, e))
         success = False
 
     if success:
