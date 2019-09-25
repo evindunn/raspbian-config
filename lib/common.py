@@ -133,7 +133,10 @@ def load_status(status_file):
     :param status_file: File to load
     :return: A dict based on the json contents of status_file
     """
-    return read_file(status_file)
+    status = read_file(status_file)
+    if status is not None:
+        return json.loads(status)
+    return None
 
 
 def save_status(status_file, status_dict):

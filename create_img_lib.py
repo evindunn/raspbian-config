@@ -24,9 +24,9 @@ proc            /proc           proc    defaults            0 0
 """
 
 CONFIG_LANG = """
-LANG={}
-LC_ALL={}
-LANGUAGE={}
+LANG={0}
+LC_ALL={0}
+LANGUAGE={0}
 """
 
 CONFIG_KEYBOARD = """
@@ -80,7 +80,8 @@ def configure_locale(chroot, locale):
     :return: Whether the operation was successful
     """
     return write_file(
-        "{}{}".format(chroot, FILE_LOCALES), CONFIG_LANG.format(locale)
+        "{}{}".format(chroot, FILE_LOCALES),
+        CONFIG_LANG.format(locale)
     )
 
 
