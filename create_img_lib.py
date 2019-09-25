@@ -3,7 +3,9 @@ import json
 import logging
 import os
 import re
-import subprocess as sp
+
+from lib.common import run_cmd
+from lib.disk import mount_device, unmount_device
 
 CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
     qemu-debootstrap
@@ -17,25 +19,6 @@ CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
         http://ftp.debian.org/debian
 """).strip()
 
-CMD_IMGFILE_CREATE = "dd status=progress if=/dev/zero of={} iflag=fullblock " \
-                     "bs=1M count={}"
-
-CMD_LOOP_DEV_CREATE = "losetup -f -P --show {}"
-CMD_LOOP_DEV_DELETE = "losetup -d {}"
-
-CMD_LOOP_DEV_FORMAT = """
-    #!/bin/bash
-    set -e
-
-    parted -s {disk} mklabel msdos
-    parted -s -a optimal {disk} mkpart primary fat32 0% 256M
-    parted -s -a optimal {disk} mkpart primary ext4 256M 100%
-
-    mkfs.vfat /dev/{part_1_name}
-    mkfs.ext4 /dev/{part_2_name}
-"""
-
-CMD_MNT = "mount {} {} {}"
 
 CMD_NETWORKD = "chroot {} systemctl enable systemd-networkd"
 
@@ -48,8 +31,6 @@ CMD_RESOLVCONF = """
     chroot {0} ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
     chroot {0} systemctl enable systemd-resolved
 """
-
-CMD_UMNT = "umount {}"
 
 CONFIG_FSTAB = """
 /dev/mmcblk0p1  /boot/firmware  vfat    defaults            0 2
@@ -68,36 +49,6 @@ DHCP=ipv4
 CMD_KERNEL_INSTALL = "chroot {} apt-get install -y linux-image-arm64"
 
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
-
-
-def run_cmd(cmd, return_output=False):
-    """
-    Runs the given cmd. If return_output, return stdout or None on error.
-    Else return a boolean indicating whether the operation was successful
-    :param cmd: Command to run
-    :param return_output: Whether to return a string or boolean
-    :return: Stdout or boolean indicating if the operation was
-    sucessful
-    """
-    completed_process = sp.run(
-        cmd,
-        shell=True,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE
-    )
-
-    if not return_output:
-        logging.debug(completed_process.stdout.decode("utf-8"))
-
-    if completed_process.returncode != 0:
-        logging.error(completed_process.stderr.decode("utf-8"))
-        if return_output:
-            return None
-        return False
-
-    if return_output:
-        return completed_process.stdout.decode("utf-8").strip()
-    return True
 
 
 def load_status(status_file):
@@ -144,62 +95,6 @@ def exit_script(status_code, status_file, status_dict):
     """
     save_status(status_file, status_dict)
     return status_code
-
-
-def create_imgfile(name, size):
-    """
-    Creates an empty *.img file using dd
-    :param name: Name of the file
-    :param size: size of the file
-    :return: Whether the process was successful
-    """
-    return run_cmd(CMD_IMGFILE_CREATE.format(name, size))
-
-
-def img_file_to_loop_dev(name):
-    """
-    Mounts an image file as a loop device
-    :param name: File name to mount as a loop device
-    :return: The name of the loop device created or None on error
-    """
-    return run_cmd(CMD_LOOP_DEV_CREATE.format(name), return_output=True)
-
-
-def format_loop_dev(loop_dev):
-    """
-    Formats the given loop device with
-        - 256M fat32 partition
-        - 256M -> 100% ext4 partition
-    :param loop_dev: The device to format
-    :return: Whether the operation was successful
-    """
-    part_prefix = loop_dev.split("/")[-1]
-    part_1_name = "{}p1".format(part_prefix)
-    part_2_name = "{}p2".format(part_prefix)
-    return run_cmd(
-        CMD_LOOP_DEV_FORMAT.format(
-            disk=loop_dev,
-            part_1_name=part_1_name,
-            part_2_name=part_2_name
-        )
-    )
-
-
-def mount_device(dev_path, mnt_path, opts=""):
-    """
-    Runs 'mount {opts} {dev_path} {mnt_path}'
-    :param dev_path: Path to block device to mount
-    :param mnt_path: Path to mount block device on
-    :param opts: Mount options
-    :return: Whether the operation was successful
-    """
-    return run_cmd(
-        CMD_MNT.format(
-            opts,
-            dev_path,
-            mnt_path
-        )
-    )
 
 
 def do_debootstrap(mnt_point, extra_pks):
@@ -383,10 +278,10 @@ def write_fstab(chroot):
 
 def install_kernel(chroot):
     if not (
-        mount_device("/proc", "/mnt/proc", "-o bind") and
-        mount_device("/sys", "/mnt/sys", "-o bind") and
-        mount_device("/dev", "/mnt/dev", "-o bind") and
-        mount_device("/dev/pts", "/mnt/dev/pts", "-o bind")
+            mount_device("/proc", "/mnt/proc", "-o bind") and
+            mount_device("/sys", "/mnt/sys", "-o bind") and
+            mount_device("/dev", "/mnt/dev", "-o bind") and
+            mount_device("/dev/pts", "/mnt/dev/pts", "-o bind")
     ):
         return False
 
@@ -445,20 +340,3 @@ def write_vimconfig(chroot):
         return False
 
     return True
-
-
-def unmount_device(dev_or_mount_path):
-    """
-    :param dev_or_mount_path: Filesystem or block device path to unmount
-    :return: Whether the operation was successful
-    """
-    return run_cmd(CMD_UMNT.format(dev_or_mount_path))
-
-
-def delete_loop_dev(loop_dev):
-    """
-    Unmounts a loop device
-    :param loop_dev: Loop device path
-    :return: Whether the operation was successful
-    """
-    return run_cmd(CMD_LOOP_DEV_DELETE.format(loop_dev))

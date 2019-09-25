@@ -11,18 +11,22 @@ from create_img_lib import (
     configure_keyboard,
     configure_locale,
     configure_networking,
-    create_imgfile,
-    delete_loop_dev,
     do_debootstrap,
     exit_script,
-    format_loop_dev,
-    img_file_to_loop_dev,
     install_kernel,
     load_status,
-    mount_device,
-    unmount_device,
     write_fstab,
     write_vimconfig
+)
+from lib.disk import (
+    dd,
+    format_partition,
+    losetup_create,
+    get_partition_uuid,
+    partition_loop_dev,
+    mount_device,
+    unmount_device,
+    losetup_delete
 )
 
 LOG_FMT_MSG = "[%(asctime)s][%(levelname)s] %(message)s"
@@ -31,6 +35,7 @@ LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
 
 PKG_KERNEL = "linux-image-arm64"
 PKG_INCLUDES = [
+    "dbus",
     "dosfstools",
     "firmware-brcm80211",
     "firmware-realtek",
@@ -72,7 +77,7 @@ def main():
     else:
         img_file = "test.img"
         img_file_size = 2048
-        if not create_imgfile(img_file, img_file_size):
+        if not dd("/dev/zero", img_file, block_bytes="1M", block_count=img_file_size):
             return exit_script(1, STATUS_FILENAME, new_status)
         logging.info("Created image file {} of size {} MB".format(img_file, img_file_size))
     new_status["img_file"] = img_file
@@ -83,7 +88,7 @@ def main():
             "{} already using {}".format(img_file, loop_dev)
         )
     else:
-        loop_dev = img_file_to_loop_dev(img_file)
+        loop_dev = losetup_create(img_file)
         if loop_dev is None:
             return exit_script(1, STATUS_FILENAME, new_status)
         logging.info(
@@ -97,11 +102,35 @@ def main():
     # loop_dev_fmt stage
     if not override and "loop_dev_fmt" not in old_status.keys():
         logging.info("Formatting {}...".format(loop_dev))
-        if not format_loop_dev(loop_dev):
+
+        if not partition_loop_dev(loop_dev):
             return exit_script(1, STATUS_FILENAME, new_status)
+
+        if not format_partition(boot_partition, "vfat"):
+            logging.error("Failed to partition {}".format(boot_partition))
+            return exit_script(1, STATUS_FILENAME, new_status)
+
+        if not format_partition(root_partition, "ext4"):
+            logging.error("Failed to partition {}".format(root_partition))
+            return exit_script(1, STATUS_FILENAME, new_status)
+
     else:
         logging.info("{} is already formatted".format(loop_dev))
     new_status["loop_dev_fmt"] = True
+
+    boot_partition_uuid = get_partition_uuid(boot_partition)
+    root_partition_uuid = get_partition_uuid(root_partition)
+
+    if boot_partition_uuid is None:
+        logging.error("Could not get uuid for partition {}".format(boot_partition))
+        exit_script(1, STATUS_FILENAME, new_status)
+    if root_partition_uuid is None:
+        logging.error("Could not get uuid for partition {}".format(root_partition))
+        exit_script(1, STATUS_FILENAME, new_status)
+
+    # TODO: Generated fstab based on uuids
+    logging.info("Boot partition at {} has uuid {}".format(boot_partition, boot_partition_uuid))
+    logging.info("Root partition at {} has uuid {}".format(root_partition, root_partition_uuid))
 
     # root_mounted stage
     if "mount_root" not in old_status.keys():
@@ -187,7 +216,7 @@ def main():
 
     # delete loop device, created every time
     logging.info("Deleting loop device {}...".format(loop_dev))
-    if not delete_loop_dev(loop_dev):
+    if not losetup_delete(loop_dev):
         return exit_script(1, STATUS_FILENAME, new_status)
     if "loop_dev" in new_status.keys():
         new_status.pop("loop_dev")
