@@ -7,19 +7,16 @@ import sys
 from create_img_lib import (
     change_rootpw,
     configure_apt,
-    configure_hostname,
     configure_keyboard,
     configure_locale,
-    configure_networking,
     do_debootstrap,
-    exit_script,
     install_kernel,
-    load_status,
     write_fstab,
     write_vimconfig
 )
+from lib.network import configure_hostname, configure_networking
 
-from lib.common import run_cmd
+from lib.common import run_cmd, load_status, exit_script
 
 from lib.disk import (
     dd,
@@ -175,6 +172,9 @@ def main():
     if not configure_hostname(CHROOT_LOCATION, "raspberrypi"):
         return exit_script(1, STATUS_FILENAME, new_status)
 
+    if not configure_networking(CHROOT_LOCATION):
+        return exit_script(1, STATUS_FILENAME, new_status)
+
     if not configure_locale(CHROOT_LOCATION, "en_US.UTF-8"):
         return exit_script(1, STATUS_FILENAME, new_status)
 
@@ -182,9 +182,6 @@ def main():
         return exit_script(1, STATUS_FILENAME, new_status)
 
     if not configure_apt(CHROOT_LOCATION):
-        return exit_script(1, STATUS_FILENAME, new_status)
-
-    if not configure_networking(CHROOT_LOCATION):
         return exit_script(1, STATUS_FILENAME, new_status)
 
     if not write_fstab(CHROOT_LOCATION):
