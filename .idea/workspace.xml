@@ -19,23 +19,6 @@
       </list>
     </option>
   </component>
-  <component name="FindInProjectRecents">
-    <findStrings>
-      <find>sp.run</find>
-      <find>&quot;/mnt&quot;</find>
-      <find>/mnt</find>
-      <find>enable</find>
-      <find>dbus</find>
-      <find>locales</find>
-      <find>&quot;</find>
-      <find />
-      <find>,</find>
-      <find>chroot</find>
-    </findStrings>
-    <replaceStrings>
-      <replace>CHROOT_LOCATION</replace>
-    </replaceStrings>
-  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>

@@ -5,7 +5,14 @@ import logging
 import sys
 
 from lib.common import run_cmd
-from lib.disk import dd, losetup_create, losetup_delete, create_partition_table, create_partition
+from lib.disk import (
+    dd,
+    losetup_create,
+    losetup_delete,
+    create_partition_table,
+    create_partition,
+    format_partition
+)
 
 LOG_FMT_MSG = "[%(asctime)s][%(levelname)s] %(message)s"
 LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
@@ -78,6 +85,20 @@ def main():
     logging.info("Creating root partition {}...".format(loop_device))
     if not create_partition(loop_device, "ext4", "256M", "100%"):
         logging.error("Failed to create root partition on {}. Exiting.".format(loop_device))
+        losetup_delete(loop_device)
+        return 1
+
+    # Format boot partition
+    logging.info("Formatting boot partition...")
+    if not format_partition("{}p1".format(loop_device), "vfat"):
+        logging.error("Failed to format boot partition on {}. Exiting.".format(loop_device))
+        losetup_delete(loop_device)
+        return 1
+
+    # Format root partition
+    logging.info("Formatting root partition...")
+    if not format_partition("{}p2".format(loop_device), "ext4"):
+        logging.error("Failed to format root partition on {}. Exiting.".format(loop_device))
         losetup_delete(loop_device)
         return 1
 

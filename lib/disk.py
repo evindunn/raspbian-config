@@ -5,16 +5,15 @@ from .common import run_cmd
 CMD_DD = "dd if={} of={}"
 CMD_DD_COUNT = "dd if={} of={} iflag=fullblock bs={} count={}"
 
-CMD_PART_CREATE = "parted -s -a optimal {} mkpart primary {} {}{}"
+CMD_PART_CREATE = "parted -s -a optimal {} mkpart primary {} {} {}"
 CMD_PART_TBL_CREATE = "parted -s {} mklabel msdos"
 CMD_PART_UUID = "lsblk {} -n -o UUID"
 
-CMD_LOOP_DEV_CREATE = "udisksctl loop-setup -f {}"
-CMD_LOOP_DEV_DELETE = "udisksctl loop-delete -b {}"
-CMD_LOOP_DEV_LIST = "losetup -l -J"
+CMD_LOOP_DEV_CREATE = "losetup --show -P -f {}"
+CMD_LOOP_DEV_DELETE = "losetup -d {}"
 
-CMD_MNT = "udisksctl mount -b {}"
-CMD_UMNT = "udisksctl unmount -b {}"
+CMD_MNT = "mount {} {}"
+CMD_UMNT = "unmount {}"
 
 SUPPORTED_PART_TYPES = ["fat32", "ext4"]
 SUPPORTED_FS_TYPES = ["vfat", "ext4"]
@@ -42,6 +41,7 @@ def create_partition(block_dev, part_type, start, end):
         logging.error(
             "Error partitioning {}: Invalid partition type '{}'".format(block_dev, part_type)
         )
+        logging.error("Valid entries are {}".format(" ".join(SUPPORTED_PART_TYPES)))
         return False
     return run_cmd(CMD_PART_CREATE.format(block_dev, part_type, start, end))
 
@@ -62,18 +62,14 @@ def dd(input_file, output_file, block_bytes=512, block_count=0):
     return run_cmd(command)
 
 
-def mount_device(dev_path):
+def mount_device(dev_path, mnt_path):
     """
-    Runs 'udisksctl mount -b dev_path'
+    Runs 'mount dev_path mnt_path'
     :param dev_path: Path to block device to mount
+    :param mnt_path: Path to mount on
     :return: Whether the operation was successful
     """
-    if not run_cmd(CMD_MNT.format(dev_path)):
-        return False
-
-    # TODO: Get the mount path
-
-    return True
+    return run_cmd(CMD_MNT.format(dev_path, mnt_path))
 
 
 def unmount_device(dev_or_mount_path):
@@ -99,19 +95,7 @@ def losetup_create(file_name):
     :param file_name: File name to mount as a loop device
     :return: The name of the loop device created or None on error
     """
-    if not run_cmd(CMD_LOOP_DEV_CREATE.format(file_name)):
-        return None
-
-    # Locate the loop device path
-    loop_device = None
-    for loopdev in losetup_list()["loopdevices"]:
-        if file_name in loopdev["back-file"]:
-            loop_device = loopdev["name"]
-            break
-    if loop_device is None:
-        logging.error("Error locating loop device for {}. Exiting.".format(file_name))
-
-    return loop_device
+    return run_cmd(CMD_LOOP_DEV_CREATE.format(file_name), return_output=True)
 
 
 def losetup_delete(loop_dev):
@@ -121,18 +105,6 @@ def losetup_delete(loop_dev):
     :return: Whether the operation was successful
     """
     return run_cmd(CMD_LOOP_DEV_DELETE.format(loop_dev))
-
-
-def losetup_list():
-    """
-    :return: Object representing loop devices on machine. See losetup -J
-    """
-    try:
-        raw_output = run_cmd(CMD_LOOP_DEV_LIST, return_output=True).strip()
-        return json.loads(raw_output)
-    except Exception as e:
-        logging.error("Error getting loop devices: {}".format(e))
-        return None
 
 
 def format_partition(dev_path, fs_type):
