@@ -5,7 +5,7 @@ import logging
 import sys
 
 from lib.common import run_cmd
-from lib.disk import dd, losetup_create, losetup_delete, create_partition_table
+from lib.disk import dd, losetup_create, losetup_delete, create_partition_table, create_partition
 
 LOG_FMT_MSG = "[%(asctime)s][%(levelname)s] %(message)s"
 LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
@@ -60,10 +60,24 @@ def main():
         logging.error("Failed to create a loop device from {}. Exiting.".format(FILE_IMG_DEFAULT))
         return 1
 
-    # Format loop device
+    # Create partition table
     logging.info("Creating partition table on {}...".format(loop_device))
     if not create_partition_table(loop_device):
         logging.error("Failed to create partition table on {}. Exiting.".format(loop_device))
+        losetup_delete(loop_device)
+        return 1
+
+    # Create boot partition
+    logging.info("Creating boot partition {}...".format(loop_device))
+    if not create_partition(loop_device, "fat32", "0%", "256M"):
+        logging.error("Failed to create boot partition on {}. Exiting.".format(loop_device))
+        losetup_delete(loop_device)
+        return 1
+
+    # Create root partition
+    logging.info("Creating root partition {}...".format(loop_device))
+    if not create_partition(loop_device, "ext4", "256M", "100%"):
+        logging.error("Failed to create root partition on {}. Exiting.".format(loop_device))
         losetup_delete(loop_device)
         return 1
 

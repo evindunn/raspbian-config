@@ -5,6 +5,7 @@ from .common import run_cmd
 CMD_DD = "dd if={} of={}"
 CMD_DD_COUNT = "dd if={} of={} iflag=fullblock bs={} count={}"
 
+CMD_PART_CREATE = "parted -s -a optimal {} mkpart primary {} {}{}"
 CMD_PART_TBL_CREATE = "parted -s {} mklabel msdos"
 CMD_PART_UUID = "lsblk {} -n -o UUID"
 
@@ -12,18 +13,11 @@ CMD_LOOP_DEV_CREATE = "udisksctl loop-setup -f {}"
 CMD_LOOP_DEV_DELETE = "udisksctl loop-delete -b {}"
 CMD_LOOP_DEV_LIST = "losetup -l -J"
 
-CMD_PARTITION_LOOP_DEV = """
-    #!/bin/bash
-    set -e
-
-    parted -s -a optimal {0} mkpart primary fat32 0% 256M
-    parted -s -a optimal {0} mkpart primary ext4 256M 100%
-"""
-
 CMD_MNT = "udisksctl mount -b {}"
 CMD_UMNT = "udisksctl unmount -b {}"
 
-SUPPORTED_FSTYPES = ["vfat", "ext4"]
+SUPPORTED_PART_TYPES = ["fat32", "ext4"]
+SUPPORTED_FS_TYPES = ["vfat", "ext4"]
 
 
 def create_partition_table(block_dev):
@@ -33,6 +27,23 @@ def create_partition_table(block_dev):
     :return: Whether the operation was successful
     """
     return run_cmd(CMD_PART_TBL_CREATE.format(block_dev))
+
+
+def create_partition(block_dev, part_type, start, end):
+    """
+    Runs 'parted -s -a optimal block_dev mkpart primary fstype start end'
+    :param block_dev: Block device to create partition on
+    :param part_type: Filesystem type; 'fat32' or 'ext4' only
+    :param start: Percentage or bytes
+    :param end: Percentage or bytes
+    :return: Whether the operation was successful
+    """
+    if not part_type in SUPPORTED_PART_TYPES:
+        logging.error(
+            "Error partitioning {}: Invalid partition type '{}'".format(block_dev, part_type)
+        )
+        return False
+    return run_cmd(CMD_PART_CREATE.format(block_dev, part_type, start, end))
 
 
 def dd(input_file, output_file, block_bytes=512, block_count=0):
@@ -132,9 +143,9 @@ def format_partition(dev_path, fs_type):
     :return: Whether the operation was successful
     """
     # These are all we need for the PI and is a good sanity check
-    if fs_type not in SUPPORTED_FSTYPES:
+    if fs_type not in SUPPORTED_FS_TYPES:
         logging.error("{} is not a valid filesystem type".format(fs_type))
-        logging.error("Supported values are: ".format(SUPPORTED_FSTYPES))
+        logging.error("Supported values are: ".format(SUPPORTED_FS_TYPES))
         return False
     return run_cmd("mkfs.{} {}".format(fs_type, dev_path))
 

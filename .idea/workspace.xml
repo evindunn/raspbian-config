@@ -2,12 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5b3a3021-16aa-4a14-9064-b4dbed153c86" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/encodings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/raspbian-config.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/raspbian-config.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/create_img.py" beforeDir="false" afterPath="$PROJECT_DIR$/create_img.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/common.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/common.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/disk.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/disk.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -112,6 +108,10 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <list>
+      <item itemvalue="Python.create_img" />
+      <item itemvalue="Python.disk" />
+    </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.create_img" />
