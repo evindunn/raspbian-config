@@ -1,0 +1,6 @@
+name: rpi-64
+dependencies:
+  - python=3
+  - pip
+  - pip:
+    - pychroot
