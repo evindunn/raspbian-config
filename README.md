@@ -9,3 +9,4 @@
 2. `cd ..`
 3. Run create_img.py
 4. Use [Drewsif's](https://github.com/Drewsif) awesome [pishrink.sh](https://github.com/Drewsif/PiShrink) script to create a small, bootable pi image
+5. `cd docker && docker-compose down`
