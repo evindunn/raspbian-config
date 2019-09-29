@@ -1,0 +1,11 @@
+version: "3.7"
+
+services:
+  nginx-cacher:
+    container_name: debian-cache
+    image: evindunn/nginx-cacher
+    ports: [8080:80]
+    volumes:
+      - ./config:/docker-config
+      - ./cache:/var/cache/nginx
+

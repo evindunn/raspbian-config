@@ -4,7 +4,7 @@ import os
 import logging
 import sys
 
-from lib.common import run_cmd
+from lib.debootstrap import debootstrap
 from lib.disk import (
     dd,
     losetup_create,
@@ -117,7 +117,7 @@ def main():
     # Mount the root partition
     logging.info("Mounting root partition...")
     if not mount_device("UUID={}".format(root_partition_uuid), PATH_MOUNT):
-        logging.error("Failed to mount root partition")
+        logging.error("Failed to mount root partition. Exiting.")
         losetup_delete(loop_device)
         return 1
 
@@ -126,23 +126,31 @@ def main():
     boot_mount_path = os.path.join(PATH_MOUNT, "boot", "firmware")
     os.makedirs(boot_mount_path, mode=0o755, exist_ok=True)
     if not mount_device("UUID={}".format(boot_partition_uuid), boot_mount_path):
-        logging.error("Failed to mount boot partition")
+        logging.error("Failed to mount boot partition. Exiting.")
+        unmount_device("UUID={}".format(root_partition_uuid))
         losetup_delete(loop_device)
         return 1
 
-
+    # Debootstrap
+    logging.info("Creating minimal debootstrap system at {}...".format(PATH_MOUNT))
+    if not debootstrap(PATH_MOUNT, extra_pks=PKG_INCLUDES, repo="http://localhost:8080/debian"):
+        logging.error("debootstrap failed for {}. Exiting.".format(PATH_MOUNT))
+        unmount_device("UUID={}".format(boot_partition_uuid))
+        unmount_device("UUID={}".format(root_partition_uuid))
+        losetup_delete(loop_device)
+        return 1
 
     # Unmount the boot partition
     logging.info("Umounting boot partition...")
     if not unmount_device("UUID={}".format(boot_partition_uuid)):
-        logging.error("Failed to unmount boot partition")
+        logging.error("Failed to unmount boot partition. Exiting.")
         unmount_device("UUID={}".format(root_partition_uuid))
         return 1
 
     # Unmount the root partition
     logging.info("Umounting root partition...")
     if not unmount_device("UUID={}".format(root_partition_uuid)):
-        logging.error("Failed to unmount root partition")
+        logging.error("Failed to unmount root partition. Exiting")
         return 1
 
     # Delete image loop device

@@ -2,20 +2,10 @@ import crypt
 import logging
 import re
 
-from lib.common import Chroot, run_cmd, read_file, write_file
+from lib.common import run_cmd, read_file, write_file
 from lib.disk import mount_device, unmount_device
 
-CMD_DEBOOTSTRAP = re.sub(r"\s+", " ", """
-    qemu-debootstrap
-        --arch=arm64
-        --keyring=/usr/share/keyrings/debian-archive-keyring.gpg
-        --components=main,contrib,non-free
-        --include={}
-        --variant=minbase
-        stable
-        {}
-        http://ftp.debian.org/debian
-""").strip()
+
 
 CONFIG_FSTAB = """
 /dev/mmcblk0p1  /boot/firmware  vfat    defaults            0 2
@@ -61,15 +51,7 @@ FILE_VIMRC = "/etc/vim/vimrc"
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
 
 
-def do_debootstrap(mnt_point, extra_pks):
-    """
-    :param mnt_point: Create debootstrap chroot here
-    :param extra_pks: Packages to include
-    :return: Whether the operation was successful
-    """
 
-    # Need debootstrap, qemu, binfmt-support, qemu-user-static
-    return run_cmd(CMD_DEBOOTSTRAP.format(",".join(extra_pks), mnt_point))
 
 
 def configure_locale(chroot, locale):
@@ -144,8 +126,7 @@ def install_kernel(chroot):
     ):
         return False
 
-    with Chroot(chroot):
-        success = run_cmd(CMD_KERNEL_INSTALL.format(chroot))
+    success = run_cmd(CMD_KERNEL_INSTALL.format(chroot))
 
     unmount_device("/mnt/proc")
     unmount_device("/mnt/sys")
