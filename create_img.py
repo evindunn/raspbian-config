@@ -4,7 +4,9 @@ import os
 import logging
 import sys
 
+from pychroot import Chroot
 from lib.debootstrap import debootstrap
+from lib.system import *
 from lib.disk import (
     dd,
     losetup_create,
@@ -53,7 +55,6 @@ def main():
         level="INFO"
     )
 
-    # TODO: Remove, for testing only
     if os.path.exists(FILE_IMG_DEFAULT):
         os.remove(FILE_IMG_DEFAULT)
 
@@ -135,6 +136,27 @@ def main():
     logging.info("Creating minimal debootstrap system at {}...".format(PATH_MOUNT))
     if not debootstrap(PATH_MOUNT, extra_pks=PKG_INCLUDES, repo="http://localhost:8080/debian"):
         logging.error("debootstrap failed for {}. Exiting.".format(PATH_MOUNT))
+        unmount_device("UUID={}".format(boot_partition_uuid))
+        unmount_device("UUID={}".format(root_partition_uuid))
+        losetup_delete(loop_device)
+        return 1
+
+    # System configuration
+    logging.info("Configuring system...")
+    success = True
+    with Chroot(PATH_MOUNT):
+        # Install kernel
+        if not install_kernel():
+            logging.error("Failed to install kernel.".format(PATH_MOUNT))
+            success = False
+
+        # Write fstab
+        if not write_fstab(boot_partition_uuid, root_partition_uuid):
+            logging.error("Failed to write {}/etc/fstab.".format(PATH_MOUNT))
+            success = False
+
+    if not success:
+        logging.error("System configuration failed. Exiting.")
         unmount_device("UUID={}".format(boot_partition_uuid))
         unmount_device("UUID={}".format(root_partition_uuid))
         losetup_delete(loop_device)

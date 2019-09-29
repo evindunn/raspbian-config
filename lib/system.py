@@ -1,15 +1,11 @@
 import crypt
-import logging
 import re
 
 from lib.common import run_cmd, read_file, write_file
-from lib.disk import mount_device, unmount_device
-
-
 
 CONFIG_FSTAB = """
-/dev/mmcblk0p1  /boot/firmware  vfat    defaults            0 2
-/dev/mmcblk0p2  /               ext4    defaults,noatime    0 1
+{}              /boot/firmware  vfat    defaults            0 2
+{}              /               ext4    defaults,noatime    0 1
 proc            /proc           proc    defaults            0 0
 """
 
@@ -49,9 +45,6 @@ FILE_PASSWD = "/etc/shadow"
 FILE_VIMRC = "/etc/vim/vimrc"
 
 MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
-
-
-
 
 
 def configure_locale(chroot, locale):
@@ -103,37 +96,22 @@ def configure_apt(chroot, distrib="stable", components=("main", "contrib", "non-
     return write_file("{}{}".format(chroot, FILE_APT), content)
 
 
-def write_fstab(chroot):
+def write_fstab(boot_uuid, root_uuid):
     """
-    Configure /etc/fstab under the given chroot
-    :param chroot: Filesystem root
+    Writes rpi fstab using boot_uuid and root_uuid
+    :param boot_uuid: Boot partition uuid
+    :param root_uuid: Root partition uuid
     :return: Whether the operation was successful
     """
-    return write_file("{}{}".format(chroot, FILE_FSTAB), CONFIG_FSTAB)
+    return write_file(FILE_FSTAB, CONFIG_FSTAB.format(boot_uuid, root_uuid))
 
 
-def install_kernel(chroot):
+def install_kernel():
     """
-    Installs the Debian Arm64 kernel under the given chroot
-    :param chroot: Filesystem root
+    Installs the Debian Arm64 kernel package
     :return: Whether the operation was successful
     """
-    if not (
-            mount_device("/proc", "/mnt/proc", "-o bind") and
-            mount_device("/sys", "/mnt/sys", "-o bind") and
-            mount_device("/dev", "/mnt/dev", "-o bind") and
-            mount_device("/dev/pts", "/mnt/dev/pts", "-o bind")
-    ):
-        return False
-
-    success = run_cmd(CMD_KERNEL_INSTALL.format(chroot))
-
-    unmount_device("/mnt/proc")
-    unmount_device("/mnt/sys")
-    unmount_device("/mnt/dev/pts")
-    unmount_device("/mnt/dev")
-
-    return success
+    return run_cmd(CMD_KERNEL_INSTALL)
 
 
 def change_rootpw(chroot, passwd):
