@@ -44,26 +44,22 @@ FILE_LOCALES = "/etc/default/locale"
 FILE_PASSWD = "/etc/shadow"
 FILE_VIMRC = "/etc/vim/vimrc"
 
-MSG_IMGFILE_CREATED = "Created image file '{}' of size {} MB"
 
-
-def configure_locale(chroot, locale):
+def configure_locale(locale):
     """
-    Configure /etc/default/locale under the given chroot
-    :param chroot: Filesystem root
+    Configure /etc/default/locale
     :param locale: Locale
     :return: Whether the operation was successful
     """
-    return write_file(
-        "{}{}".format(chroot, FILE_LOCALES),
-        CONFIG_LANG.format(locale)
+    return (
+        write_file(FILE_LOCALES, CONFIG_LANG.format(locale)) and
+        run_cmd("locale-gen --purge {}".format(locale))
     )
 
 
-def configure_keyboard(chroot, xkblayout, xkbmodel="pc105", xkbvariant="", xkboptions="", backspace="guess"):
+def configure_keyboard(xkblayout, xkbmodel="pc105", xkbvariant="", xkboptions="", backspace="guess"):
     """
-    Configure /etc/default/keyboard under the given chroot
-    :param chroot: Filesystem root
+    Configure /etc/default/keyboard
     :param xkblayout: Keyboard layout
     :param xkbmodel: Keyboard model
     :param xkbvariant: Keyboard variant
@@ -78,22 +74,23 @@ def configure_keyboard(chroot, xkblayout, xkbmodel="pc105", xkbvariant="", xkbop
         xkboptions,
         backspace
     )
-    return write_file("{}{}".format(chroot, FILE_KEYBOARD), keyboard_config)
+    return write_file(FILE_KEYBOARD, keyboard_config)
 
 
-def configure_apt(chroot, distrib="stable", components=("main", "contrib", "non-free")):
+def configure_apt(url="http://deb.debian.org/debian", distrib="stable", components=("main", "contrib", "non-free")):
     """
-    Configure /etc/apt/source.list under the given chroot
-    :param chroot: Filesystem root
+    Writes /etc/apt/source.list
+    :param url: Repo url
     :param distrib: stable, unstable, stretch, buster, etc...
     :param components: main, contrib, non-free
     :return: Whether the operation was successful
     """
-    content = "deb http://deb.debian.org/debian {} {}\n".format(
+    content = "deb {} {} {}\n".format(
+        url,
         distrib,
         " ".join(components)
     )
-    return write_file("{}{}".format(chroot, FILE_APT), content)
+    return write_file(FILE_APT, content) and run_cmd("apt-get update")
 
 
 def write_fstab(boot_uuid, root_uuid):
@@ -114,31 +111,25 @@ def install_kernel():
     return run_cmd(CMD_KERNEL_INSTALL)
 
 
-def change_rootpw(chroot, passwd):
+def change_rootpw(passwd):
     """
-    Changes the root password under the given chroot
-    :param chroot: Filesystem root
+    Changes the system root password
     :param passwd: New root password
     :return: Whether the operation was successful
     """
-    shadow_file = "{}{}".format(chroot, FILE_PASSWD)
-    success = shadow_contents = read_file(shadow_file)
-
-    if success:
+    shadow_contents = read_file(FILE_PASSWD)
+    if shadow_contents is not None:
         shadow_contents = re.sub(
             r"(?<=^root:)\*(?=:)",
             crypt.crypt(passwd, salt=crypt.METHOD_SHA256),
             shadow_contents
         )
-        success = write_file(FILE_PASSWD, shadow_contents)
-
-    return success
+        return write_file(FILE_PASSWD, shadow_contents)
 
 
-def write_vimconfig(chroot):
+def configure_vim():
     """
-    Writes my prefered vim config to the chroot
-    :param chroot: Filesystem root
+    Writes my prefered vim config
     :return: Whether the operation was successful
     """
-    return write_file("{}{}".format(chroot, FILE_VIMRC), CONFIG_VIM)
+    return write_file(FILE_VIMRC, CONFIG_VIM)

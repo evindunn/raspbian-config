@@ -14,7 +14,7 @@ def read_file(path):
 
     try:
         logging.info("Reading {}...".format(path))
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             contents = f.read()
     except Exception as e:
         logging.warning("Error reading {}: {}".format(path, e))
@@ -36,7 +36,7 @@ def write_file(path, contents, append=False):
         file_mode = "w"
     try:
         logging.info("Writing {}...".format(path))
-        with open(path, file_mode) as f:
+        with open(path, file_mode, encoding="utf-8") as f:
             f.write(contents)
     except Exception as e:
         logging.warning("Error writing {}: {}".format(path, e))

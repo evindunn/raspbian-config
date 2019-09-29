@@ -2,7 +2,8 @@ import logging
 import os
 import re
 
-from lib.common import run_cmd, systemd_enable, Chroot, write_file, read_file
+from lib.common import systemd_enable, write_file, read_file, run_cmd
+from lib.disk import unmount_device
 
 CONFIG_DHCP = """
 [Match]
@@ -29,75 +30,62 @@ FILE_RESOLVCONF_ETC = "/etc/resolv.conf"
 FILE_SSHD = "/etc/ssh/sshd_config"
 
 
-def configure_hostname(chroot, hostname):
+def configure_hostname(hostname):
     """
-    Configures /etc/hostname and /etc/hosts for the given chroot directory
-    :param chroot: Filesystem root
+    Configures /etc/hostname and /etc/hosts
     :param hostname: Hostname
     :return: Whether the operation was successful
     """
     return (
-        write_file("{}{}".format(chroot, FILE_HOSTNAME), "{}\n".format(hostname)) and
-        write_file("{}{}".format(chroot, FILE_HOSTS), CONFIG_HOSTS.format(hostname))
+        write_file(FILE_HOSTNAME, "{}\n".format(hostname)) and
+        write_file(FILE_HOSTS, CONFIG_HOSTS.format(hostname))
     )
 
 
-def configure_networking(chroot):
+def configure_networking():
     """
     Configures networking in the given chroot using systemd-networkd and
     systemd-resolved
     :param chroot: Filesystem root
     :return: Whether the operation was successful
     """
-    logging.info("Enabling dbus...")
-    success = systemd_enable("dbus", chroot=chroot)
+    success = systemd_enable("dbus")
 
     if success:
         logging.info("Configuring systemd-networkd...")
-        success = write_file(
-            "{}{}".format(chroot, FILE_NETWORKD_DEFAULT),
-            CONFIG_DHCP
+        success = (
+            write_file(FILE_NETWORKD_DEFAULT, CONFIG_DHCP) and
+            success and systemd_enable("systemd-networkd")
         )
-        success = success and systemd_enable("systemd-networkd", chroot=chroot)
 
     if success:
         logging.info("Configuring systemd-resolved...")
         try:
-            os.makedirs(
-                "{}{}".format(chroot, DIR_RESOLVCONF),
-                mode=0o755,
-                exist_ok=True
+            os.makedirs(DIR_RESOLVCONF, mode=0o755, exist_ok=True)
+            success = (
+                run_cmd("cp {} {}".format(FILE_RESOLVCONF_ETC, FILE_RESOLVCONF_RUN)) and
+                unmount_device(FILE_RESOLVCONF_ETC)
             )
-            os.remove("{}{}".format(chroot, FILE_RESOLVCONF_ETC))
-            success = run_cmd(
-                "cp {} {}{}".format(
-                    FILE_RESOLVCONF_RUN,
-                    chroot,
-                    FILE_RESOLVCONF_RUN
-                )
-            )
+            os.remove(FILE_RESOLVCONF_ETC)
         except Exception as e:
             logging.error("Error copying systemd-resolved files: {}".format(e))
             success = False
 
         if success:
             try:
-                with Chroot(chroot):
-                    os.symlink(FILE_RESOLVCONF_RUN, FILE_RESOLVCONF_ETC)
+                os.symlink(FILE_RESOLVCONF_RUN, FILE_RESOLVCONF_ETC)
             except Exception as e:
                 logging.error("Error symlinking resolvconf: {}".format(e))
                 success = False
 
-        success = success and systemd_enable("systemd-resolved", chroot=chroot)
+        if success:
+            success = systemd_enable("systemd-resolved")
 
         if success:
-            logging.info("Configuring ssh...")
-            ssh_config_file = "{}{}".format(chroot, FILE_SSHD)
-            ssh_config = read_file(ssh_config_file)
-
+            ssh_config = read_file(FILE_SSHD)
             try:
                 ssh_config = re.sub(
-                    r"# ?(?=PermitRootLogin\s+yes|no|prohibit-password)$",
+                    r"# +(?=PermitRootLogin\s+yes|no|prohibit-password)$",
                     "",
                     ssh_config,
                     re.MULTILINE
@@ -106,10 +94,10 @@ def configure_networking(chroot):
                 logging.error("Error formatting ssh config: {}".format(e))
                 success = False
 
-            success = (
-                success and
-                write_file(ssh_config_file, ssh_config) and
-                systemd_enable("ssh", chroot=chroot)
-            )
+            if success:
+                success = (
+                    write_file(FILE_SSHD, ssh_config) and
+                    systemd_enable("ssh")
+                )
 
     return success

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-import os
-import logging
 import sys
 
 from pychroot import Chroot
 from lib.debootstrap import debootstrap
 from lib.system import *
+from lib.network import *
 from lib.disk import (
     dd,
     losetup_create,
@@ -116,15 +115,15 @@ def main():
         return 1
 
     # Mount the root partition
-    logging.info("Mounting root partition...")
+    logging.info("Mounting root partition on {}...".format(PATH_MOUNT))
     if not mount_device("UUID={}".format(root_partition_uuid), PATH_MOUNT):
         logging.error("Failed to mount root partition. Exiting.")
         losetup_delete(loop_device)
         return 1
 
     # Mount the boot partition
-    logging.info("Mounting boot partition...")
     boot_mount_path = os.path.join(PATH_MOUNT, "boot", "firmware")
+    logging.info("Mounting boot partition on {}...".format(boot_mount_path))
     os.makedirs(boot_mount_path, mode=0o755, exist_ok=True)
     if not mount_device("UUID={}".format(boot_partition_uuid), boot_mount_path):
         logging.error("Failed to mount boot partition. Exiting.")
@@ -142,25 +141,63 @@ def main():
         return 1
 
     # System configuration
+    # TODO: Script keeps going if configuration fails, because cant pass variables btwn main script & chroot context
     logging.info("Configuring system...")
-    success = True
     with Chroot(PATH_MOUNT):
+        success = True
+
+        # Configure apt to use cache
+        if success and not configure_apt("http://localhost:8080/debian"):
+            logging.error("Failed to configure apt")
+            success = False
+
         # Install kernel
-        if not install_kernel():
-            logging.error("Failed to install kernel.".format(PATH_MOUNT))
+        if success and not install_kernel():
+            logging.error("Failed to install kernel".format(PATH_MOUNT))
             success = False
 
         # Write fstab
-        if not write_fstab(boot_partition_uuid, root_partition_uuid):
-            logging.error("Failed to write {}/etc/fstab.".format(PATH_MOUNT))
+        if success and not write_fstab(boot_partition_uuid, root_partition_uuid):
+            logging.error("Failed to write {}/etc/fstab".format(PATH_MOUNT))
             success = False
 
-    if not success:
-        logging.error("System configuration failed. Exiting.")
-        unmount_device("UUID={}".format(boot_partition_uuid))
-        unmount_device("UUID={}".format(root_partition_uuid))
-        losetup_delete(loop_device)
-        return 1
+        # Change root password
+        if success and not change_rootpw("toor"):
+            logging.error("Failed to change root password")
+            success = False
+
+        # Configure locale
+        if success and not configure_locale("en_US.UTF-8"):
+            logging.error("Locale configuration failed")
+            success = False
+
+        # Configure keyboard
+        if success and not configure_keyboard("us"):
+            logging.error("Keyboard configuration failed")
+            success = False
+
+        # Configure vim
+        if success and not configure_vim():
+            logging.error("Vim configuration failed")
+            success = False
+
+        # Configure networking
+        if success and not configure_networking():
+            logging.error("Network configuration failed")
+            success = False
+
+        # Configure hostname
+        if success and not configure_hostname("raspberrypi"):
+            logging.error("Hostname configuration failed")
+            success = False
+
+        # Configure apt to use official repo
+        if success and not configure_apt():
+            logging.error("Failed to configure apt")
+            success = False
+
+        if not success:
+            logging.error("System configuration failed.")
 
     # Unmount the boot partition
     logging.info("Umounting boot partition...")
