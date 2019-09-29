@@ -1,4 +1,3 @@
-import json
 import logging
 from .common import run_cmd
 
@@ -13,7 +12,7 @@ CMD_LOOP_DEV_CREATE = "losetup --show -P -f {}"
 CMD_LOOP_DEV_DELETE = "losetup -d {}"
 
 CMD_MNT = "mount {} {}"
-CMD_UMNT = "unmount {}"
+CMD_UMNT = "umount {}"
 
 SUPPORTED_PART_TYPES = ["fat32", "ext4"]
 SUPPORTED_FS_TYPES = ["vfat", "ext4"]
@@ -121,13 +120,3 @@ def format_partition(dev_path, fs_type):
         return False
     return run_cmd("mkfs.{} {}".format(fs_type, dev_path))
 
-
-def partition_loop_dev(loop_dev):
-    """
-    Partitions the given loop device with
-        - 256M fat32 partition
-        - 256M -> 100% ext4 partition
-    :param loop_dev: The device to format
-    :return: Whether the operation was successful
-    """
-    return run_cmd(CMD_PARTITION_LOOP_DEV.format(loop_dev))

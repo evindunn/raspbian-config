@@ -11,7 +11,10 @@ from lib.disk import (
     losetup_delete,
     create_partition_table,
     create_partition,
-    format_partition
+    format_partition,
+    mount_device,
+    unmount_device,
+    get_partition_uuid
 )
 
 LOG_FMT_MSG = "[%(asctime)s][%(levelname)s] %(message)s"
@@ -24,12 +27,12 @@ PKG_INCLUDES = [
     "dosfstools",
     "firmware-brcm80211",
     "firmware-realtek",
-    "haveged",
     "iproute2",
     "locales",
     "parted",
     "python",   # For ansible
     "raspi3-firmware",
+    "rng-tools5",
     "systemd",
     "systemd-sysv",
     "ssh",
@@ -39,8 +42,8 @@ PKG_INCLUDES = [
 ]
 
 FILE_IMG_DEFAULT = "debian-stable-arm64.img"
-CHROOT_LOCATION = "/mnt"
-STATUS_FILENAME = ".status"
+PATH_MOUNT = "/mnt"
+FILE_STATUS = ".status"
 
 
 def main():
@@ -100,6 +103,46 @@ def main():
     if not format_partition("{}p2".format(loop_device), "ext4"):
         logging.error("Failed to format root partition on {}. Exiting.".format(loop_device))
         losetup_delete(loop_device)
+        return 1
+
+    # Get partition uuids
+    boot_partition_uuid = get_partition_uuid("{}p1".format(loop_device))
+    root_partition_uuid = get_partition_uuid("{}p2".format(loop_device))
+
+    if boot_partition_uuid is None or root_partition_uuid is None:
+        logging.error("Failed to retrieve partition UUIDs. Exiting.".format(loop_device))
+        losetup_delete(loop_device)
+        return 1
+
+    # Mount the root partition
+    logging.info("Mounting root partition...")
+    if not mount_device("UUID={}".format(root_partition_uuid), PATH_MOUNT):
+        logging.error("Failed to mount root partition")
+        losetup_delete(loop_device)
+        return 1
+
+    # Mount the boot partition
+    logging.info("Mounting boot partition...")
+    boot_mount_path = os.path.join(PATH_MOUNT, "boot", "firmware")
+    os.makedirs(boot_mount_path, mode=0o755, exist_ok=True)
+    if not mount_device("UUID={}".format(boot_partition_uuid), boot_mount_path):
+        logging.error("Failed to mount boot partition")
+        losetup_delete(loop_device)
+        return 1
+
+
+
+    # Unmount the boot partition
+    logging.info("Umounting boot partition...")
+    if not unmount_device("UUID={}".format(boot_partition_uuid)):
+        logging.error("Failed to unmount boot partition")
+        unmount_device("UUID={}".format(root_partition_uuid))
+        return 1
+
+    # Unmount the root partition
+    logging.info("Umounting root partition...")
+    if not unmount_device("UUID={}".format(root_partition_uuid)):
+        logging.error("Failed to unmount root partition")
         return 1
 
     # Delete image loop device
