@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+from uuid import uuid4
 
 from pychroot import Chroot
 from lib.debootstrap import debootstrap

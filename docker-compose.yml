@@ -6,6 +6,6 @@ services:
     image: evindunn/nginx-cacher
     ports: [8080:80]
     volumes:
-      - ./config:/docker-config
-      - ./cache:/var/cache/nginx
+      - ./docker/config:/docker-config
+      - ./docker/cache:/var/cache/nginx
 

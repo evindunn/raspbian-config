@@ -4,8 +4,8 @@ import re
 from lib.common import run_cmd, read_file, write_file
 
 CONFIG_FSTAB = """
-{}              /boot/firmware  vfat    defaults            0 2
-{}              /               ext4    defaults,noatime    0 1
+UUID={}         /boot/firmware  vfat    defaults            0 2
+UUID={}         /               ext4    defaults,noatime    0 1
 proc            /proc           proc    defaults            0 0
 """
 

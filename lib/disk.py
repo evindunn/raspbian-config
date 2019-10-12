@@ -14,6 +14,10 @@ CMD_LOOP_DEV_DELETE = "losetup -d {}"
 CMD_MNT = "mount {} {}"
 CMD_UMNT = "umount {}"
 
+CMD_PVCREATE = "pvcreate {}"
+CMD_VGCREATE = "vgcreate {} {}"
+CMD_LVCREATE = "lvcreate -n {} -L {} {}"
+
 SUPPORTED_PART_TYPES = ["fat32", "ext4"]
 SUPPORTED_FS_TYPES = ["vfat", "ext4"]
 
@@ -120,3 +124,32 @@ def format_partition(dev_path, fs_type):
         return False
     return run_cmd("mkfs.{} {}".format(fs_type, dev_path))
 
+
+def create_physical_volume(dev_path):
+    """
+    Creates an LVM physical volume out of the given dev_path
+    :param dev_path: Path of the device to use as a physical volume
+    :return: Whether the command was successful
+    """
+    return run_cmd(CMD_PVCREATE.format(dev_path))
+
+
+def create_volume_group(group_name, pv_paths):
+    """
+    Creates an LVM volume group named group_name consisting of the pv's in pv_paths
+    :param group_name: Name of the volume group
+    :param pv_paths: List of paths to LVM physical volumes
+    :return: Whether the operation was successful
+    """
+    return run_cmd(CMD_VGCREATE.format(group_name, " ".join(pv_paths)))
+
+
+def create_logical_volume(volume_name, volume_size, volume_group):
+    """
+    Creates a logical volume named volume_name that takes up volume_size within volume_group
+    :param volume_name: Name of the new logical volume
+    :param volume_size: Size of the new logical volume
+    :param volume_group: Volume group for the new logical volume
+    :return: Whether the operation was successful
+    """
+    return run_cmd(CMD_LVCREATE.format(volume_name, volume_size, volume_group))

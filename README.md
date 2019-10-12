@@ -5,7 +5,7 @@
 
 
 #### Create the custom image
-1. `cd docker && docker-compose up -d` to speed up subsequent builds
+1. `docker-compose up -d` to speed up subsequent builds
 2. `cd ..`
 3. `conda env create -f environment.yml && conda activate rpi-64`
 4. `sudo PATH="$PATH" bash -c './create_img.py'`
