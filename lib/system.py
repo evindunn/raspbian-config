@@ -4,9 +4,9 @@ import re
 from lib.common import run_cmd, read_file, write_file
 
 CONFIG_FSTAB = """
-UUID={}         /boot/firmware  vfat    defaults            0 2
-UUID={}         /               ext4    defaults,noatime    0 1
-proc            /proc           proc    defaults            0 0
+/dev/mmcblk0p1          /boot/firmware  vfat    defaults            0 2
+/dev/mmcblk1p2          /               ext4    defaults,noatime    0 1
+proc                    /proc           proc    defaults            0 0
 """
 
 CONFIG_LANG = """
@@ -35,7 +35,8 @@ autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
 
 CMD_KERNEL_INSTALL = "apt-get install -y linux-image-arm64"
 
-FILE_APT = "/etc/apt/sources.list"
+FILE_APT_SOURCES = "/etc/apt/sources.list"
+FILE_APT_CONFIG = "/etc/apt/apt.conf.d/99disable-suggested"
 FILE_FSTAB = "/etc/fstab"
 FILE_KEYBOARD = "/etc/default/keyboard"
 FILE_LOCALES = "/etc/default/locale"
@@ -45,8 +46,17 @@ FILE_SSHD = "/etc/ssh/sshd_config"
 
 
 def configure_sshd():
+    """
+    Configures SSHD to allow root logins
+    :return: Whether the operation was successful
+    """
     sshd_config = read_file(FILE_SSHD)
-    re.sub(r"#?\s*PermitRootLogin .*$", "PermitRootLogin yes", sshd_config, flags=re.MULTILINE)
+    re.sub(
+        r"^#?\s*PermitRootLogin\s+(no|prohibit-password)$",
+        "PermitRootLogin yes",
+        sshd_config,
+        flags=re.MULTILINE
+    )
     return write_file(FILE_SSHD, sshd_config)
 
 
@@ -90,12 +100,17 @@ def configure_apt(url="http://deb.debian.org/debian", distrib="stable", componen
     :param components: main, contrib, non-free
     :return: Whether the operation was successful
     """
-    content = "deb {} {} {}\n".format(
+    sources_content = "deb {} {} {}\n".format(
         url,
         distrib,
         " ".join(components)
     )
-    return write_file(FILE_APT, content) and run_cmd("apt-get update")
+    config_content = 'APT::Get::Install-Recommends "false";'
+    return (
+            write_file(FILE_APT_CONFIG, config_content) and
+            write_file(FILE_APT_SOURCES, sources_content) and
+            run_cmd("apt-get update")
+    )
 
 
 def write_fstab(boot_uuid, root_uuid):
