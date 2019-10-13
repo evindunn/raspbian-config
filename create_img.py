@@ -192,6 +192,11 @@ def main():
             logging.error("Hostname configuration failed")
             success = False
 
+        # Configure ssh
+        if success and not configure_sshd():
+            logging.error("SSHD configuration failed")
+            success = False
+
         # Configure apt to use official repo
         if success and not configure_apt():
             logging.error("Failed to configure apt")

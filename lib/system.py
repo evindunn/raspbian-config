@@ -10,9 +10,7 @@ proc            /proc           proc    defaults            0 0
 """
 
 CONFIG_LANG = """
-LANG={0}
-LC_ALL={0}
-LANGUAGE={0}
+LANG="{0}"
 """
 
 CONFIG_KEYBOARD = """
@@ -43,6 +41,13 @@ FILE_KEYBOARD = "/etc/default/keyboard"
 FILE_LOCALES = "/etc/default/locale"
 FILE_PASSWD = "/etc/shadow"
 FILE_VIMRC = "/etc/vim/vimrc"
+FILE_SSHD = "/etc/ssh/sshd_config"
+
+
+def configure_sshd():
+    sshd_config = read_file(FILE_SSHD)
+    re.sub(r"#?\s*PermitRootLogin .*$", "PermitRootLogin yes", sshd_config, flags=re.MULTILINE)
+    return write_file(FILE_SSHD, sshd_config)
 
 
 def configure_locale(locale):
