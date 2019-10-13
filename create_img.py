@@ -24,6 +24,7 @@ LOG_FMT_DATE = "%H:%M:%S %Y-%m-%d"
 
 PKG_KERNEL = "linux-image-arm64"
 PKG_INCLUDES = [
+    "aptitude",
     "dbus",
     "dialog",
     "dosfstools",
@@ -32,7 +33,9 @@ PKG_INCLUDES = [
     "iproute2",
     "locales",
     "parted",
-    "python",   # For ansible
+    "python-apt",       # For ansible
+    "python",           # For ansible
+    "python-selinux",   # For ansible
     "raspi3-firmware",
     "rng-tools5",
     "systemd",
