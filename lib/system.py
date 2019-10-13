@@ -3,15 +3,20 @@ import re
 
 from lib.common import run_cmd, read_file, write_file
 
+CONFIG_APT_SUGGESTS = """
+APT::Get::Install-Recommends "false";
+APT::Get::Install-Suggested "false";
+""".strip()
+
 CONFIG_FSTAB = """
 /dev/mmcblk0p1          /boot/firmware  vfat    defaults            0 2
 /dev/mmcblk1p2          /               ext4    defaults,noatime    0 1
 proc                    /proc           proc    defaults            0 0
-"""
+""".strip()
 
 CONFIG_LANG = """
 LANG="{0}"
-"""
+""".strip()
 
 CONFIG_KEYBOARD = """
 XKBMODEL={}
@@ -19,7 +24,7 @@ XKBLAYOUT={}
 XKBVARIANT={}
 XKBOPTIONS={}
 BACKSPACE={}
-"""
+""".strip()
 
 CONFIG_VIM = """
 syntax on
@@ -31,7 +36,7 @@ set expandtab
 
 autocmd FileType make setlocal noexpandtab
 autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
-"""
+""".strip()
 
 CMD_KERNEL_INSTALL = "apt-get install -y linux-image-arm64"
 
@@ -105,9 +110,8 @@ def configure_apt(url="http://deb.debian.org/debian", distrib="stable", componen
         distrib,
         " ".join(components)
     )
-    config_content = 'APT::Get::Install-Recommends "false";'
     return (
-            write_file(FILE_APT_CONFIG, config_content) and
+            write_file(FILE_APT_CONFIG, CONFIG_APT_SUGGESTS) and
             write_file(FILE_APT_SOURCES, sources_content) and
             run_cmd("apt-get update")
     )
