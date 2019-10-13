@@ -49,6 +49,14 @@ PKG_INCLUDES = [
 FILE_IMG_DEFAULT = "debian-stable-arm64.img"
 PATH_MOUNT = "/mnt"
 FILE_STATUS = ".status"
+FILE_RESIZE_PART = "/usr/local/bin/expand-root-partition"
+
+SCRIPT_RESIZE_ROOTFS = """
+#/bin/bash
+
+parted -s /dev/mmcblk0p2 resizepart 1 100%
+resize2fs /dev/mmcblk0p2
+""".strip()
 
 
 def main():
@@ -203,6 +211,10 @@ def main():
         # Configure apt to use official repo
         if success and not configure_apt():
             logging.error("Failed to configure apt")
+            success = False
+
+        # Write a convenience script for resizing the root fs
+        if success and not write_file(FILE_RESIZE_PART, SCRIPT_RESIZE_ROOTFS):
             success = False
 
         if not success:
