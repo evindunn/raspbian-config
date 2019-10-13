@@ -4,8 +4,8 @@ import re
 from lib.common import run_cmd, read_file, write_file
 
 CONFIG_APT_SUGGESTS = """
-APT::Get::Install-Recommends "false";
-APT::Get::Install-Suggested "false";
+APT::Install-Recommends "false";
+APT::Install-Suggested "false";
 """.strip()
 
 CONFIG_FSTAB = """
